@@ -1,0 +1,120 @@
+# PMD Gold Passport - base configuration.
+# Every value can be overridden with environment variables (Spring relaxed binding), e.g.
+#   PMD_AUTH_MODE=cognito  PMD_STORAGE_PROVIDER=s3  SPRING_DATASOURCE_URL=jdbc:postgresql://...
+spring:
+  application:
+    name: gold-passport
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/goldpassport}
+    username: ${DB_USERNAME:goldpassport}
+    password: ${DB_PASSWORD:goldpassport}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema (src/main/resources/db/migration).
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 20MB
+  jackson:
+    default-property-inclusion: always
+    serialization:
+      write-dates-as-timestamps: false
+    generator:
+      write-bigdecimal-as-plain: true
+  messages:
+    basename: i18n/messages
+    fallback-to-system-locale: false
+    encoding: UTF-8
+  modulith:
+    events:
+      jdbc:
+        # Spring Modulith creates its event_publication table (outbox for async listeners).
+        schema-initialization:
+          enabled: true
+      republish-outstanding-events-on-restart: true
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  error:
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    # Swagger UI renders the hand-written contract (api/openapi.yaml), not a generated one.
+    url: /openapi.yaml
+    path: /swagger-ui.html
+
+pmd:
+  auth:
+    mode: ${PMD_AUTH_MODE:local}
+    cors-allowed-origins:
+      - http://localhost:3000
+      - http://localhost:8081
+      - http://localhost:19006
+    local:
+      issuer: https://auth.pmd.local
+      # Override in every shared environment! (>= 32 bytes)
+      jwt-secret: ${PMD_LOCAL_JWT_SECRET:dev-only-secret-change-me-please-0123456789}
+      token-ttl: 12h
+      otp-ttl: 5m
+      fixed-otp: ${PMD_LOCAL_FIXED_OTP:}
+      expose-code: ${PMD_LOCAL_EXPOSE_CODE:false}
+      max-attempts: 5
+      max-requests-per-window: 5
+      request-window: 15m
+    cognito:
+      issuer-uri: ${PMD_COGNITO_ISSUER_URI:}
+      region: ${PMD_COGNITO_REGION:}
+      client-id: ${PMD_COGNITO_CLIENT_ID:}
+  storage:
+    provider: ${PMD_STORAGE_PROVIDER:local}
+    local-dir: ${PMD_STORAGE_LOCAL_DIR:./data/storage}
+    max-file-size: 15MB
+    s3:
+      bucket: ${PMD_S3_BUCKET:}
+      region: ${PMD_S3_REGION:}
+      endpoint: ${PMD_S3_ENDPOINT:}
+      kms-key-id: ${PMD_S3_KMS_KEY_ID:}
+  kyc:
+    provider: ${PMD_KYC_PROVIDER:stub}
+    region: ${PMD_KYC_REGION:}
+    face-similarity-threshold: 90
+  notifications:
+    push:
+      provider: ${PMD_PUSH_PROVIDER:log}
+      region: ${PMD_PUSH_REGION:}
+      android-platform-arn: ${PMD_SNS_ANDROID_ARN:}
+      ios-platform-arn: ${PMD_SNS_IOS_ARN:}
+  lots:
+    min-photos: 1
+    max-clock-skew: 5m
+  transport:
+    location-mismatch-km: 5
+    max-clock-skew: 5m
+  lab:
+    purity-tolerance-pct: 0.5
+    weight-tolerance-pct: 1.0

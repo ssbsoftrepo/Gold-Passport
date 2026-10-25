@@ -1,0 +1,12 @@
+pmd:
+  auth:
+    local:
+      # Random codes are used (fixed-otp empty) but returned by the API so tests can log in.
+      expose-code: true
+      max-requests-per-window: 1000
+  storage:
+    local-dir: target/test-storage
+
+logging:
+  level:
+    com.pmd.goldpassport: INFO

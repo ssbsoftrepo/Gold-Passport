@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "PMD Oro",
+    "slug": "pmd-gold-passport",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "pmdgold",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "pe.pmd.goldpassport",
+      "infoPlist": {
+        "NSCameraUsageDescription": "PMD usa la cámara para fotografiar documentos y la extracción de cada lote.",
+        "NSLocationWhenInUseUsageDescription": "PMD registra la ubicación de cada foto y de cada etapa del transporte."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#23363A",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "pe.pmd.goldpassport",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#23363A",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "PMD usa la cámara para fotografiar documentos y la extracción de cada lote."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "PMD registra la ubicación de cada foto y de cada etapa del transporte."
+        }
+      ],
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

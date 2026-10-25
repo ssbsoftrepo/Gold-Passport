@@ -1,0 +1,25 @@
+create table lab.lab_results (
+    id                     uuid primary key,
+    lot_id                 uuid           not null unique,
+    lot_code               varchar(20)    not null,
+    miner_user_id          uuid           not null,
+    collector_user_id      uuid           not null,
+    lab_name               varchar(200)   not null,
+    measured_purity_pct    numeric(7, 4)  not null,
+    measured_weight_grams  numeric(14, 4) not null,
+    declared_purity_pct    numeric(7, 4)  not null,
+    declared_weight_grams  numeric(14, 4) not null,
+    purity_delta_pct       numeric(9, 4)  not null,
+    weight_delta_pct       numeric(9, 4)  not null,
+    status                 varchar(30)    not null,
+    report_file_id         uuid           not null,
+    report_sha256          varchar(64)    not null,
+    final_purity_pct       numeric(7, 4),
+    final_weight_grams     numeric(14, 4),
+    resolution_notes       text,
+    resolved_by            uuid,
+    resolved_at            timestamptz,
+    recorded_at            timestamptz    not null,
+    version                bigint         not null default 0
+);
+create index lab_results_status_idx on lab.lab_results (status);

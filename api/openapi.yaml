@@ -1,0 +1,1706 @@
+openapi: 3.0.3
+info:
+  title: PMD Gold Passport API
+  version: 1.0.0
+  description: |
+    Contract for the PMD Gold Passport platform: traceability of artisanal gold from the
+    Miner, through the Transporter, to the Collector/Plant, with PMD back-office oversight.
+
+    This file is the single source of truth for the API. The backend implements it and the
+    web and mobile apps generate their TypeScript types from it (`npm run api:generate`).
+    `ApiContractTest` in the backend fails the build if a controller endpoint and this file
+    drift apart.
+
+    Conventions
+    - All endpoints except `/api/v1/auth/**` and `/api/v1/public/**` require a Bearer JWT.
+    - `/api/v1/admin/**` requires the ADMIN role (PMD back office).
+    - Errors are RFC 7807 `application/problem+json` with a stable machine-readable `code`.
+    - Timestamps are ISO-8601 UTC instants. Weights are grams, purity is percent (0-100).
+servers:
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: me
+  - name: onboarding
+  - name: files
+  - name: relationships
+  - name: lots
+  - name: transports
+  - name: lab
+  - name: settlement
+  - name: notifications
+  - name: public
+  - name: admin
+
+paths:
+  # ------------------------------------------------------------------ auth
+  /api/v1/auth/config:
+    get:
+      tags: [auth]
+      operationId: getAuthConfig
+      summary: How clients should authenticate (local OTP or Amazon Cognito)
+      security: []
+      responses:
+        '200':
+          description: Auth configuration
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthConfig' }
+  /api/v1/auth/otp/request:
+    post:
+      tags: [auth]
+      operationId: requestOtp
+      summary: Request a one-time login code (local auth mode only)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpRequest' }
+      responses:
+        '202':
+          description: Code issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpChallenge' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/otp/verify:
+    post:
+      tags: [auth]
+      operationId: verifyOtp
+      summary: Exchange a one-time code for an access token (local auth mode only)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpVerifyRequest' }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+
+  # ------------------------------------------------------------------ me
+  /api/v1/me:
+    get:
+      tags: [me]
+      operationId: getMe
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+    patch:
+      tags: [me]
+      operationId: updateMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '400': { $ref: '#/components/responses/Problem' }
+  /api/v1/me/role:
+    put:
+      tags: [me]
+      operationId: setMyRole
+      summary: Choose the platform role (once). ADMIN cannot be self-assigned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetRoleRequest' }
+      responses:
+        '200':
+          description: Role set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/participants:
+    get:
+      tags: [onboarding]
+      operationId: searchParticipants
+      summary: Directory of KYC-approved participants, used to pick commercial partners
+      parameters:
+        - { name: role, in: query, required: false, schema: { $ref: '#/components/schemas/Role' } }
+        - { name: q, in: query, required: false, schema: { type: string }, description: 'Name, document number or RUC fragment' }
+      responses:
+        '200':
+          description: Participants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Participant' }
+
+  # ------------------------------------------------------------------ onboarding
+  /api/v1/onboarding/me:
+    get:
+      tags: [onboarding]
+      operationId: getMyOnboarding
+      summary: Current user's onboarding application (created as DRAFT on first call)
+      responses:
+        '200':
+          description: Application
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '409': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [onboarding]
+      operationId: updateMyOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OnboardingUpdateRequest' }
+      responses:
+        '200':
+          description: Application
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/onboarding/me/documents:
+    post:
+      tags: [onboarding]
+      operationId: uploadOnboardingDocument
+      summary: Upload an identity document, selfie, driver's license or company legal document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [kind, file]
+              properties:
+                kind: { $ref: '#/components/schemas/DocumentKind' }
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingDocument' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/onboarding/me/submit:
+    post:
+      tags: [onboarding]
+      operationId: submitMyOnboarding
+      responses:
+        '200':
+          description: Submitted for PMD review
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/onboarding:
+    get:
+      tags: [admin]
+      operationId: adminListOnboarding
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/OnboardingStatus' } }
+      responses:
+        '200':
+          description: Applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OnboardingApplication' }
+  /api/v1/admin/onboarding/{applicationId}:
+    get:
+      tags: [admin]
+      operationId: adminGetOnboarding
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      responses:
+        '200':
+          description: Application
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/onboarding/{applicationId}/approve:
+    post:
+      tags: [admin]
+      operationId: adminApproveOnboarding
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/onboarding/{applicationId}/request-corrections:
+    post:
+      tags: [admin]
+      operationId: adminRequestOnboardingCorrections
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200':
+          description: Corrections requested
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/onboarding/{applicationId}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectOnboarding
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingApplication' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/users:
+    get:
+      tags: [admin]
+      operationId: adminListUsers
+      parameters:
+        - { name: role, in: query, required: false, schema: { $ref: '#/components/schemas/Role' } }
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserProfile' }
+
+  # ------------------------------------------------------------------ files
+  /api/v1/files/{fileId}:
+    get:
+      tags: [files]
+      operationId: getFileMetadata
+      parameters:
+        - $ref: '#/components/parameters/fileId'
+      responses:
+        '200':
+          description: Metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StoredFile' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/files/{fileId}/content:
+    get:
+      tags: [files]
+      operationId: downloadFile
+      parameters:
+        - $ref: '#/components/parameters/fileId'
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  # ------------------------------------------------------------------ relationships
+  /api/v1/relationships:
+    get:
+      tags: [relationships]
+      operationId: listMyRelationships
+      summary: Relationships registered by me, plus approved ones where I am the counterparty
+      responses:
+        '200':
+          description: Relationships
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CommercialRelationship' }
+    post:
+      tags: [relationships]
+      operationId: createRelationship
+      summary: >
+        Register a commercial relationship. Transporters register Miners or Collectors by their
+        details (reviewed by PMD). Collectors pick approved Miners or Transporters from the
+        directory (approved immediately).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialRelationship' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/relationships/{relationshipId}:
+    put:
+      tags: [relationships]
+      operationId: resubmitRelationship
+      summary: Update details and resubmit after PMD asked for clarification
+      parameters:
+        - $ref: '#/components/parameters/relationshipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipRequest' }
+      responses:
+        '200':
+          description: Resubmitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialRelationship' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/relationships:
+    get:
+      tags: [admin]
+      operationId: adminListRelationships
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/RelationshipStatus' } }
+      responses:
+        '200':
+          description: Relationships
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CommercialRelationship' }
+  /api/v1/admin/relationships/{relationshipId}/approve:
+    post:
+      tags: [admin]
+      operationId: adminApproveRelationship
+      parameters:
+        - $ref: '#/components/parameters/relationshipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialRelationship' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/relationships/{relationshipId}/request-clarification:
+    post:
+      tags: [admin]
+      operationId: adminRequestRelationshipClarification
+      parameters:
+        - $ref: '#/components/parameters/relationshipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200':
+          description: Clarification requested
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialRelationship' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/relationships/{relationshipId}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectRelationship
+      parameters:
+        - $ref: '#/components/parameters/relationshipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialRelationship' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  # ------------------------------------------------------------------ lots
+  /api/v1/lots:
+    get:
+      tags: [lots]
+      operationId: listMyLots
+      summary: Lots where I am the miner, assigned transporter or receiving collector
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/LotStatus' } }
+      responses:
+        '200':
+          description: Lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Lot' }
+    post:
+      tags: [lots]
+      operationId: createLot
+      summary: Miner opens a new lote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateLotRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lot' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}:
+    get:
+      tags: [lots]
+      operationId: getLot
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      responses:
+        '200':
+          description: Lot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lot' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/photos:
+    post:
+      tags: [lots]
+      operationId: uploadLotPhoto
+      summary: Upload an extraction photo; GPS and capture time are recorded as evidence
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, latitude, longitude]
+              properties:
+                file: { type: string, format: binary }
+                latitude: { type: number, format: double }
+                longitude: { type: number, format: double }
+                accuracyMeters: { type: number, format: double }
+                capturedAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Evidence recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LotEvidence' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/complete:
+    post:
+      tags: [lots]
+      operationId: completeLot
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      responses:
+        '200':
+          description: Lot completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lot' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/miner-lab-result:
+    post:
+      tags: [lots]
+      operationId: uploadMinerLabResult
+      summary: Miner declares weight and purity with the laboratory report
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, purityPct, weightGrams, labName]
+              properties:
+                file: { type: string, format: binary }
+                purityPct: { type: number }
+                weightGrams: { type: number }
+                labName: { type: string }
+      responses:
+        '200':
+          description: Lot ready for transport
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lot' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/ledger:
+    get:
+      tags: [lots]
+      operationId: getLotLedger
+      summary: Full hash-chained custody ledger of a lot, with integrity verification
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      responses:
+        '200':
+          description: Ledger
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LotLedger' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/lots:
+    get:
+      tags: [admin]
+      operationId: adminListLots
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/LotStatus' } }
+      responses:
+        '200':
+          description: Lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Lot' }
+
+  # ------------------------------------------------------------------ transports
+  /api/v1/transports:
+    get:
+      tags: [transports]
+      operationId: listMyTransports
+      summary: Transports where I am the transporter, miner or collector
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/TransportStatus' } }
+      responses:
+        '200':
+          description: Transports
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Transport' }
+    post:
+      tags: [transports]
+      operationId: createTransport
+      summary: Transporter requests a new transport between an approved Miner and Collector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransportRequest' }
+      responses:
+        '201':
+          description: Requested; Miner and Collector are notified
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transport' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}:
+    get:
+      tags: [transports]
+      operationId: getTransport
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      responses:
+        '200':
+          description: Transport
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transport' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [transports]
+      operationId: amendTransport
+      summary: Transporter amends a declined request and resubmits it ("resolve pending confirmation")
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransportRequest' }
+      responses:
+        '200':
+          description: Resubmitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transport' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/miner-confirm:
+    post:
+      tags: [transports]
+      operationId: minerConfirmTransport
+      summary: Miner confirms and hands a READY lot to this transport ("submit lote transfer")
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MinerConfirmRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/collector-confirm:
+    post:
+      tags: [transports]
+      operationId: collectorConfirmTransport
+      summary: Collector approves the planned mineral receipt
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/decline:
+    post:
+      tags: [transports]
+      operationId: declineTransport
+      summary: Miner or Collector declines the request
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/cancel:
+    post:
+      tags: [transports]
+      operationId: cancelTransport
+      summary: Transporter cancels before pickup
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/depart:
+    post:
+      tags: [transports]
+      operationId: departTransport
+      summary: Transporter starts travelling to the Miner
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GeoReading' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/arrive-at-miner:
+    post:
+      tags: [transports]
+      operationId: arriveAtMiner
+      summary: Transporter arrives at the Miner location (distance to lot evidence is checked)
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GeoReading' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/approve-pickup:
+    post:
+      tags: [transports]
+      operationId: approvePickup
+      summary: Collector approves the mineral pickup
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/handover:
+    post:
+      tags: [transports]
+      operationId: confirmHandover
+      summary: Miner assigns current mineral ownership to the Transporter
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/pickup:
+    post:
+      tags: [transports]
+      operationId: pickupMineral
+      summary: Transporter picks up the mineral; custody moves to the Transporter
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GeoReading' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/location:
+    post:
+      tags: [transports]
+      operationId: recordTransportLocation
+      summary: Optional GPS ping while in transit
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GeoReading' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/arrive-at-collector:
+    post:
+      tags: [transports]
+      operationId: arriveAtCollector
+      summary: Transporter delivers at the Collector/Plant
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GeoReading' }
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/receive:
+    post:
+      tags: [transports]
+      operationId: receiveMineral
+      summary: Collector marks the mineral as received; custody moves to the Collector
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/transports/{transportId}/finalize:
+    post:
+      tags: [transports]
+      operationId: finalizeTransport
+      summary: Transporter finalizes and closes the transport record
+      parameters:
+        - $ref: '#/components/parameters/transportId'
+      responses:
+        '200': { $ref: '#/components/responses/TransportOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/transports:
+    get:
+      tags: [admin]
+      operationId: adminListTransports
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/TransportStatus' } }
+      responses:
+        '200':
+          description: Transports
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Transport' }
+
+  # ------------------------------------------------------------------ lab
+  /api/v1/lots/{lotId}/lab-result:
+    get:
+      tags: [lab]
+      operationId: getLabResult
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      responses:
+        '200':
+          description: Collector laboratory result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabResult' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [lab]
+      operationId: recordLabResult
+      summary: Collector uploads its laboratory check; it is compared with the Miner's declaration
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, purityPct, weightGrams, labName]
+              properties:
+                file: { type: string, format: binary }
+                purityPct: { type: number }
+                weightGrams: { type: number }
+                labName: { type: string }
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/lab-results:
+    get:
+      tags: [admin]
+      operationId: adminListLabResults
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/LabResultStatus' } }
+      responses:
+        '200':
+          description: Lab results
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LabResult' }
+  /api/v1/admin/lots/{lotId}/lab-result/resolve:
+    post:
+      tags: [admin]
+      operationId: adminResolveLabDiscrepancy
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveDiscrepancyRequest' }
+      responses:
+        '200':
+          description: Resolved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabResult' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  # ------------------------------------------------------------------ settlement
+  /api/v1/settlements:
+    get:
+      tags: [settlement]
+      operationId: listMySettlements
+      responses:
+        '200':
+          description: Settlements where I am the miner or collector
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Settlement' }
+  /api/v1/lots/{lotId}/settlement:
+    get:
+      tags: [settlement]
+      operationId: getSettlement
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/settlement/proposals:
+    post:
+      tags: [settlement]
+      operationId: proposeSettlementAmount
+      summary: Collector proposes (or re-proposes) the payment amount
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProposeAmountRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/settlement/accept:
+    post:
+      tags: [settlement]
+      operationId: acceptSettlementAmount
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/settlement/dispute:
+    post:
+      tags: [settlement]
+      operationId: disputeSettlementAmount
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/lots/{lotId}/settlement/mark-paid:
+    post:
+      tags: [settlement]
+      operationId: markSettlementPaid
+      summary: Collector records the off-app payment; the operation is completed
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MarkPaidRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/settlements:
+    get:
+      tags: [admin]
+      operationId: adminListSettlements
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/SettlementStatus' } }
+      responses:
+        '200':
+          description: Settlements
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Settlement' }
+  /api/v1/admin/lots/{lotId}/settlement/validate:
+    post:
+      tags: [admin]
+      operationId: adminValidateSettlement
+      summary: PMD validates the amount agreed by both parties
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewDecisionRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/admin/lots/{lotId}/settlement/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectSettlement
+      parameters:
+        - $ref: '#/components/parameters/lotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/SettlementOk' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  # ------------------------------------------------------------------ notifications
+  /api/v1/notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      parameters:
+        - { name: unreadOnly, in: query, required: false, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Notifications, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+  /api/v1/notifications/{notificationId}/read:
+    post:
+      tags: [notifications]
+      operationId: markNotificationRead
+      parameters:
+        - { name: notificationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Marked read }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/notifications/read-all:
+    post:
+      tags: [notifications]
+      operationId: markAllNotificationsRead
+      responses:
+        '204': { description: All marked read }
+  /api/v1/devices:
+    post:
+      tags: [notifications]
+      operationId: registerDevice
+      summary: Register a native push token (FCM / APNs)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceRegistration' }
+      responses:
+        '204': { description: Registered }
+  /api/v1/devices/unregister:
+    post:
+      tags: [notifications]
+      operationId: unregisterDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceUnregistration' }
+      responses:
+        '204': { description: Unregistered }
+
+  # ------------------------------------------------------------------ public
+  /api/v1/public/passports/{lotCode}:
+    get:
+      tags: [public]
+      operationId: getGoldPassport
+      summary: Public, privacy-redacted traceability passport of a lot (e.g. from a QR code)
+      security: []
+      parameters:
+        - { name: lotCode, in: path, required: true, schema: { type: string }, example: GP-7KQ29XHD }
+      responses:
+        '200':
+          description: Passport
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoldPassport' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    applicationId: { name: applicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    relationshipId: { name: relationshipId, in: path, required: true, schema: { type: string, format: uuid } }
+    lotId: { name: lotId, in: path, required: true, schema: { type: string, format: uuid } }
+    transportId: { name: transportId, in: path, required: true, schema: { type: string, format: uuid } }
+    fileId: { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    Problem:
+      description: Error (RFC 7807)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TransportOk:
+      description: Updated transport
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Transport' }
+    SettlementOk:
+      description: Settlement
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Settlement' }
+
+  schemas:
+    # ---------------------------------------------------------------- common
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string, nullable: true }
+        instance: { type: string, nullable: true }
+        code: { type: string, nullable: true, description: 'Stable error code, e.g. INVALID_STATE, NOT_FOUND, FORBIDDEN' }
+        errors:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+    Role:
+      type: string
+      enum: [MINER, TRANSPORTER, COLLECTOR, ADMIN]
+    IdDocumentType:
+      type: string
+      enum: [DNI, CE, PASSPORT, RUC]
+    GeoReading:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, format: double, minimum: -90, maximum: 90 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180 }
+        accuracyMeters: { type: number, format: double, nullable: true }
+        recordedAt: { type: string, format: date-time, nullable: true, description: Device time of the reading (offline sync) }
+    GeoPoint:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+    ReviewDecisionRequest:
+      type: object
+      properties:
+        notes: { type: string, nullable: true, maxLength: 2000 }
+    ReasonRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    # ---------------------------------------------------------------- auth / users
+    AuthConfig:
+      type: object
+      required: [mode]
+      properties:
+        mode: { type: string, enum: [local, cognito] }
+        cognitoRegion: { type: string, nullable: true }
+        cognitoClientId: { type: string, nullable: true }
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string, description: 'E.164, e.g. +51987654321', example: '+51987654321' }
+    OtpChallenge:
+      type: object
+      required: [expiresInSeconds, devCode]
+      properties:
+        expiresInSeconds: { type: integer }
+        devCode: { type: string, nullable: true, description: Only returned when pmd.auth.local.expose-code=true (local development) }
+    OtpVerifyRequest:
+      type: object
+      required: [phone, code]
+      properties:
+        phone: { type: string }
+        code: { type: string }
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, example: Bearer }
+        expiresIn: { type: integer, description: Seconds }
+        user: { $ref: '#/components/schemas/UserProfile' }
+    UserProfile:
+      type: object
+      required: [id, phone, email, displayName, role, locale, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        displayName: { type: string, nullable: true }
+        role:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/Role' }]
+          nullable: true
+        locale: { type: string, enum: [es, en] }
+        createdAt: { type: string, format: date-time }
+    UpdateProfileRequest:
+      type: object
+      properties:
+        displayName: { type: string, nullable: true, maxLength: 200 }
+        email: { type: string, nullable: true, format: email }
+        locale: { type: string, nullable: true, enum: [es, en] }
+    SetRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+    Participant:
+      type: object
+      required: [userId, role, displayName, documentType, documentNumberMasked, companyName, ruc]
+      properties:
+        userId: { type: string, format: uuid }
+        role: { $ref: '#/components/schemas/Role' }
+        displayName: { type: string }
+        documentType:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/IdDocumentType' }]
+          nullable: true
+        documentNumberMasked: { type: string, nullable: true, example: '****5678' }
+        companyName: { type: string, nullable: true }
+        ruc: { type: string, nullable: true }
+
+    # ---------------------------------------------------------------- onboarding
+    OnboardingStatus:
+      type: string
+      enum: [DRAFT, SUBMITTED, CORRECTIONS_REQUESTED, APPROVED, REJECTED]
+    DocumentKind:
+      type: string
+      enum: [ID_DOCUMENT, SELFIE, DRIVER_LICENSE, COMPANY_LEGAL_DOCUMENT]
+    KycStatus:
+      type: string
+      enum: [NOT_RUN, PASSED, NEEDS_REVIEW, FAILED]
+    OnboardingDocument:
+      type: object
+      required: [id, kind, fileId, fileName, contentType, sha256, uploadedAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
+        fileId: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string }
+        sha256: { type: string }
+        uploadedAt: { type: string, format: date-time }
+    OnboardingApplication:
+      type: object
+      required: [id, userId, role, status, phone, fullName, documentType, documentNumber, email,
+                 driverLicenseNumber, vehiclePlate, companyName, ruc, companyAddress, legalRepresentative,
+                 documents, kycStatus, kycDetails, reviewNotes, missingRequirements, submittedAt, reviewedAt,
+                 createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/OnboardingStatus' }
+        phone: { type: string }
+        fullName: { type: string, nullable: true }
+        documentType:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/IdDocumentType' }]
+          nullable: true
+        documentNumber: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        driverLicenseNumber: { type: string, nullable: true }
+        vehiclePlate: { type: string, nullable: true }
+        companyName: { type: string, nullable: true }
+        ruc: { type: string, nullable: true }
+        companyAddress: { type: string, nullable: true }
+        legalRepresentative: { type: string, nullable: true }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/OnboardingDocument' }
+        kycStatus: { $ref: '#/components/schemas/KycStatus' }
+        kycDetails: { type: string, nullable: true }
+        reviewNotes: { type: string, nullable: true }
+        missingRequirements:
+          type: array
+          items: { type: string }
+          description: Machine-readable keys of what is still missing before submit, e.g. "field.fullName", "document.SELFIE"
+        submittedAt: { type: string, format: date-time, nullable: true }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    OnboardingUpdateRequest:
+      type: object
+      properties:
+        fullName: { type: string, nullable: true, maxLength: 200 }
+        documentType:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/IdDocumentType' }]
+          nullable: true
+        documentNumber: { type: string, nullable: true, maxLength: 20 }
+        email: { type: string, nullable: true, maxLength: 200 }
+        driverLicenseNumber: { type: string, nullable: true, maxLength: 30 }
+        vehiclePlate: { type: string, nullable: true, maxLength: 15 }
+        companyName: { type: string, nullable: true, maxLength: 200 }
+        ruc: { type: string, nullable: true, maxLength: 11 }
+        companyAddress: { type: string, nullable: true, maxLength: 300 }
+        legalRepresentative: { type: string, nullable: true, maxLength: 200 }
+
+    # ---------------------------------------------------------------- files
+    StoredFile:
+      type: object
+      required: [id, fileName, contentType, sizeBytes, sha256, uploadedAt]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        sha256: { type: string }
+        uploadedAt: { type: string, format: date-time }
+
+    # ---------------------------------------------------------------- relationships
+    RelationshipStatus:
+      type: string
+      enum: [PENDING_REVIEW, CLARIFICATION_REQUESTED, APPROVED, REJECTED]
+    RelationshipRequest:
+      type: object
+      required: [counterpartyRole]
+      properties:
+        counterpartyRole: { $ref: '#/components/schemas/Role' }
+        counterpartyUserId: { type: string, format: uuid, nullable: true, description: Required for Collectors (picked from the directory) }
+        entityName: { type: string, nullable: true, maxLength: 200 }
+        documentType:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/IdDocumentType' }]
+          nullable: true
+        documentNumber: { type: string, nullable: true, maxLength: 20 }
+        phone: { type: string, nullable: true, maxLength: 20 }
+        contactPerson: { type: string, nullable: true, maxLength: 200 }
+    CommercialRelationship:
+      type: object
+      required: [id, ownerUserId, ownerRole, ownerName, counterpartyRole, counterpartyUserId, entityName, documentType,
+                 documentNumber, phone, contactPerson, status, reviewNotes, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        ownerUserId: { type: string, format: uuid }
+        ownerRole: { $ref: '#/components/schemas/Role' }
+        ownerName: { type: string, nullable: true }
+        counterpartyRole: { $ref: '#/components/schemas/Role' }
+        counterpartyUserId: { type: string, format: uuid, nullable: true, description: 'Linked platform participant, if found' }
+        entityName: { type: string }
+        documentType: { $ref: '#/components/schemas/IdDocumentType' }
+        documentNumber: { type: string }
+        phone: { type: string, nullable: true }
+        contactPerson: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/RelationshipStatus' }
+        reviewNotes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ---------------------------------------------------------------- lots
+    LotStatus:
+      type: string
+      enum: [OPEN, COMPLETED, READY_FOR_TRANSPORT, ASSIGNED_TO_TRANSPORT, IN_TRANSIT, DELIVERED,
+             LAB_DISCREPANCY, LAB_APPROVED, SETTLED]
+    CreateLotRequest:
+      type: object
+      required: [mineSiteName]
+      properties:
+        mineSiteName: { type: string, minLength: 1, maxLength: 200, description: 'Name of the socavón / mine site' }
+        description: { type: string, nullable: true, maxLength: 2000 }
+    LotEvidence:
+      type: object
+      required: [id, fileId, sha256, latitude, longitude, accuracyMeters, capturedAt, receivedAt]
+      properties:
+        id: { type: string, format: uuid }
+        fileId: { type: string, format: uuid }
+        sha256: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        accuracyMeters: { type: number, format: double, nullable: true }
+        capturedAt: { type: string, format: date-time, nullable: true }
+        receivedAt: { type: string, format: date-time }
+    Lot:
+      type: object
+      required: [id, code, status, minerUserId, minerName, mineSiteName, description, transporterUserId, collectorUserId,
+                 custodianUserId, custodianRole, currentTransportId, declaredWeightGrams, declaredPurityPct, minerLabName,
+                 minerLabReportFileId, verifiedWeightGrams, verifiedPurityPct, evidence, createdAt, completedAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: GP-7KQ29XHD }
+        status: { $ref: '#/components/schemas/LotStatus' }
+        minerUserId: { type: string, format: uuid }
+        minerName: { type: string, nullable: true }
+        mineSiteName: { type: string }
+        description: { type: string, nullable: true }
+        transporterUserId: { type: string, format: uuid, nullable: true }
+        collectorUserId: { type: string, format: uuid, nullable: true }
+        custodianUserId: { type: string, format: uuid }
+        custodianRole: { $ref: '#/components/schemas/Role' }
+        currentTransportId: { type: string, format: uuid, nullable: true }
+        declaredWeightGrams: { type: number, nullable: true }
+        declaredPurityPct: { type: number, nullable: true }
+        minerLabName: { type: string, nullable: true }
+        minerLabReportFileId: { type: string, format: uuid, nullable: true }
+        verifiedWeightGrams: { type: number, nullable: true }
+        verifiedPurityPct: { type: number, nullable: true }
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/LotEvidence' }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time }
+    LedgerEntry:
+      type: object
+      required: [sequence, eventType, actorUserId, actorRole, occurredAt, payload, prevHash, hash]
+      properties:
+        sequence: { type: integer, format: int64 }
+        eventType: { type: string, example: transport.PICKED_UP }
+        actorUserId: { type: string, format: uuid, nullable: true }
+        actorRole: { type: string, nullable: true }
+        occurredAt: { type: string, format: date-time }
+        payload: { type: object, additionalProperties: true }
+        prevHash: { type: string }
+        hash: { type: string }
+    LotLedger:
+      type: object
+      required: [lotId, lotCode, verified, headHash, entries]
+      properties:
+        lotId: { type: string, format: uuid }
+        lotCode: { type: string }
+        verified: { type: boolean, description: True when every entry's hash recomputes and links to the previous one }
+        headHash: { type: string, nullable: true }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/LedgerEntry' }
+
+    # ---------------------------------------------------------------- transports
+    TransportStatus:
+      type: string
+      enum: [PENDING_CONFIRMATION, DECLINED, CONFIRMED, EN_ROUTE_TO_MINER, AT_MINER, IN_TRANSIT,
+             ARRIVED_AT_COLLECTOR, DELIVERED, COMPLETED, CANCELLED]
+    CheckpointType:
+      type: string
+      enum: [DEPARTED, ARRIVED_AT_MINER, PICKED_UP, LOCATION_PING, ARRIVED_AT_COLLECTOR]
+    TransportRequest:
+      type: object
+      required: [minerUserId, collectorUserId]
+      properties:
+        minerUserId: { type: string, format: uuid }
+        collectorUserId: { type: string, format: uuid }
+        plannedPickupDate: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+    MinerConfirmRequest:
+      type: object
+      required: [lotId]
+      properties:
+        lotId: { type: string, format: uuid }
+    TransportCheckpoint:
+      type: object
+      required: [id, type, latitude, longitude, accuracyMeters, recordedAt, receivedAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/CheckpointType' }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        accuracyMeters: { type: number, format: double, nullable: true }
+        recordedAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+    Transport:
+      type: object
+      required: [id, code, status, transporterUserId, transporterName, minerUserId, minerName, collectorUserId,
+                 collectorName, lotId, lotCode, plannedPickupDate, notes, minerConfirmedAt, collectorConfirmedAt,
+                 declinedByUserId, declineReason, pickupApprovedAt, handoverConfirmedAt, arrivalDistanceKm,
+                 locationMismatch, checkpoints, createdAt, updatedAt, completedAt]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: TR-4M8Q2ZKD }
+        status: { $ref: '#/components/schemas/TransportStatus' }
+        transporterUserId: { type: string, format: uuid }
+        transporterName: { type: string, nullable: true }
+        minerUserId: { type: string, format: uuid }
+        minerName: { type: string, nullable: true }
+        collectorUserId: { type: string, format: uuid }
+        collectorName: { type: string, nullable: true }
+        lotId: { type: string, format: uuid, nullable: true }
+        lotCode: { type: string, nullable: true }
+        plannedPickupDate: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true }
+        minerConfirmedAt: { type: string, format: date-time, nullable: true }
+        collectorConfirmedAt: { type: string, format: date-time, nullable: true }
+        declinedByUserId: { type: string, format: uuid, nullable: true }
+        declineReason: { type: string, nullable: true }
+        pickupApprovedAt: { type: string, format: date-time, nullable: true }
+        handoverConfirmedAt: { type: string, format: date-time, nullable: true }
+        arrivalDistanceKm: { type: number, format: double, nullable: true, description: Distance between arrival GPS and the lot's photo evidence }
+        locationMismatch: { type: boolean, description: True when arrivalDistanceKm exceeds the configured threshold }
+        checkpoints:
+          type: array
+          items: { $ref: '#/components/schemas/TransportCheckpoint' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+
+    # ---------------------------------------------------------------- lab
+    LabResultStatus:
+      type: string
+      enum: [APPROVED, DISCREPANCY_OPEN, DISCREPANCY_RESOLVED]
+    LabResult:
+      type: object
+      required: [id, lotId, lotCode, collectorUserId, labName, measuredPurityPct, measuredWeightGrams, declaredPurityPct,
+                 declaredWeightGrams, purityDeltaPct, weightDeltaPct, status, reportFileId, finalPurityPct,
+                 finalWeightGrams, resolutionNotes, resolvedAt, recordedAt]
+      properties:
+        id: { type: string, format: uuid }
+        lotId: { type: string, format: uuid }
+        lotCode: { type: string }
+        collectorUserId: { type: string, format: uuid }
+        labName: { type: string }
+        measuredPurityPct: { type: number }
+        measuredWeightGrams: { type: number }
+        declaredPurityPct: { type: number }
+        declaredWeightGrams: { type: number }
+        purityDeltaPct: { type: number, description: 'measured - declared, in percentage points' }
+        weightDeltaPct: { type: number, description: '(measured - declared) / declared * 100' }
+        status: { $ref: '#/components/schemas/LabResultStatus' }
+        reportFileId: { type: string, format: uuid }
+        finalPurityPct: { type: number, nullable: true, description: Purity used for settlement }
+        finalWeightGrams: { type: number, nullable: true }
+        resolutionNotes: { type: string, nullable: true }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        recordedAt: { type: string, format: date-time }
+    ResolveDiscrepancyRequest:
+      type: object
+      required: [finalPurityPct, finalWeightGrams, notes]
+      properties:
+        finalPurityPct: { type: number, minimum: 0, maximum: 100 }
+        finalWeightGrams: { type: number, minimum: 0 }
+        notes: { type: string, minLength: 1, maxLength: 2000 }
+
+    # ---------------------------------------------------------------- settlement
+    SettlementStatus:
+      type: string
+      enum: [PROPOSED, DISPUTED, MINER_ACCEPTED, AGREED, PAID]
+    PaymentMethod:
+      type: string
+      enum: [BANK_TRANSFER, CASH, OTHER]
+    ProposeAmountRequest:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number, minimum: 0 }
+        currency: { type: string, enum: [PEN, USD] }
+        pricePerGram: { type: number, nullable: true }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+    MarkPaidRequest:
+      type: object
+      required: [paymentReference, paymentMethod]
+      properties:
+        paymentReference: { type: string, minLength: 1, maxLength: 100 }
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+    SettlementProposal:
+      type: object
+      required: [id, amount, currency, pricePerGram, notes, proposedAt, response, responseReason, respondedAt]
+      properties:
+        id: { type: string, format: uuid }
+        amount: { type: number }
+        currency: { type: string }
+        pricePerGram: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+        proposedAt: { type: string, format: date-time }
+        response: { type: string, nullable: true, enum: [ACCEPTED, DISPUTED, ADMIN_REJECTED, null] }
+        responseReason: { type: string, nullable: true }
+        respondedAt: { type: string, format: date-time, nullable: true }
+    Settlement:
+      type: object
+      required: [id, lotId, lotCode, minerUserId, collectorUserId, status, amount, currency, adminNotes, paymentReference,
+                 paymentMethod, paidAt, proposals, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        lotId: { type: string, format: uuid }
+        lotCode: { type: string }
+        minerUserId: { type: string, format: uuid }
+        collectorUserId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/SettlementStatus' }
+        amount: { type: number, description: Current proposed or agreed amount }
+        currency: { type: string }
+        adminNotes: { type: string, nullable: true }
+        paymentReference: { type: string, nullable: true }
+        paymentMethod:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/PaymentMethod' }]
+          nullable: true
+        paidAt: { type: string, format: date-time, nullable: true }
+        proposals:
+          type: array
+          items: { $ref: '#/components/schemas/SettlementProposal' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ---------------------------------------------------------------- notifications
+    Notification:
+      type: object
+      required: [id, type, title, body, data, read, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, example: transport.REQUESTED }
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+          description: 'Deep-link data, e.g. { "lotId": "...", "transportId": "..." }'
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    DeviceRegistration:
+      type: object
+      required: [token, platform]
+      properties:
+        token: { type: string }
+        platform: { type: string, enum: [ANDROID, IOS] }
+    DeviceUnregistration:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+
+    # ---------------------------------------------------------------- public passport
+    PassportEvent:
+      type: object
+      required: [eventType, actorRole, occurredAt, approximateLocation]
+      properties:
+        eventType: { type: string }
+        actorRole: { type: string, nullable: true }
+        occurredAt: { type: string, format: date-time }
+        approximateLocation:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/GeoPoint' }]
+          nullable: true
+          description: Rounded to ~1 km for privacy
+    GoldPassport:
+      type: object
+      required: [lotCode, status, mineSiteName, approximateOrigin, evidenceCount, declaredWeightGrams, declaredPurityPct,
+                 verifiedWeightGrams, verifiedPurityPct, timeline, ledgerVerified, headHash, generatedAt]
+      properties:
+        lotCode: { type: string }
+        status: { $ref: '#/components/schemas/LotStatus' }
+        mineSiteName: { type: string }
+        approximateOrigin:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/GeoPoint' }]
+          nullable: true
+        evidenceCount: { type: integer }
+        declaredWeightGrams: { type: number, nullable: true }
+        declaredPurityPct: { type: number, nullable: true }
+        verifiedWeightGrams: { type: number, nullable: true }
+        verifiedPurityPct: { type: number, nullable: true }
+        timeline:
+          type: array
+          items: { $ref: '#/components/schemas/PassportEvent' }
+        ledgerVerified: { type: boolean }
+        headHash: { type: string, nullable: true }
+        generatedAt: { type: string, format: date-time }

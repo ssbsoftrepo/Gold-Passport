@@ -1,0 +1,15 @@
+# Java
+backend/target/
+backend/data/
+*.class
+# IDEs
+.idea/
+*.iml
+.vscode/*
+!apps/mobile/.vscode/
+.DS_Store
+# Node (apps keep their own .gitignore too)
+node_modules/
+# Local data
+data/
+.env

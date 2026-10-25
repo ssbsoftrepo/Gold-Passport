@@ -1,0 +1,17 @@
+# Developer laptop profile: `SPRING_PROFILES_ACTIVE=local` (set by scripts/dev-backend.sh and docker-compose).
+# - Fixed OTP 123456 that is also returned by the API, so apps can auto-fill it.
+# - Demo users and relationships are seeded (see db/dev/R__dev_seed.sql and docs/local-development.md).
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+
+pmd:
+  auth:
+    local:
+      fixed-otp: "123456"
+      expose-code: true
+      max-requests-per-window: 50
+
+logging:
+  level:
+    com.pmd.goldpassport: DEBUG
