@@ -1,11 +1,23 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, call, setAccessToken, type Schemas } from "./api";
+import { api, call, setAccessToken, setTokenRenewer, type Schemas } from "./api";
 import { clearCache } from "./cache";
+import { revokeCognitoToken } from "./cognito";
+import {
+  forgetCognitoRefresh,
+  readCognitoRefresh,
+  renewCognitoToken,
+  saveCognitoRefresh,
+  TOKEN_KEY,
+  type CognitoRefresh,
+} from "./refresh";
 import { registerForPush } from "./push";
 
-/** Access token in the device keystore (SecureStore) + the current user and onboarding state. */
+/**
+ * Access token in the device keystore (SecureStore) + the current user and onboarding state. With
+ * Cognito the refresh token is kept too, and the API client renews the token with it (refresh.ts).
+ */
 
 type User = Schemas["UserProfile"];
 type Application = Schemas["OnboardingApplication"];
@@ -14,13 +26,12 @@ type Session = {
   status: "loading" | "anonymous" | "authenticated";
   user: User | null;
   onboarding: Application | null;
-  signIn: (token: string) => Promise<void>;
+  signIn: (token: string, cognito?: CognitoRefresh) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<Session | null>(null);
-const TOKEN_KEY = "pmd.token";
 const CACHE_KEY = "pmd.session.cache";
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -39,6 +50,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    const saved = await readCognitoRefresh().catch(() => null);
+    // Best effort: without signal the refresh token simply expires on its own.
+    if (saved) void revokeCognitoToken(saved, saved.refreshToken).catch(() => undefined);
+    await forgetCognitoRefresh();
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => undefined);
     await AsyncStorage.removeItem(CACHE_KEY).catch(() => undefined);
     await clearCache();
@@ -49,7 +64,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    async (token: string) => {
+    async (token: string, cognito?: CognitoRefresh) => {
+      if (cognito) await saveCognitoRefresh(cognito);
+      else await forgetCognitoRefresh();
       await SecureStore.setItemAsync(TOKEN_KEY, token);
       setAccessToken(token);
       await refresh();
@@ -57,6 +74,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     },
     [refresh],
   );
+
+  useEffect(() => {
+    setTokenRenewer(renewCognitoToken);
+    return () => setTokenRenewer(null);
+  }, []);
 
   useEffect(() => {
     SecureStore.getItemAsync(TOKEN_KEY)
@@ -79,7 +101,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           await refresh();
           void registerForPush();
         } catch (e) {
-          // Offline at startup: keep the token and the cached profile; 401 means the token expired.
+          // Offline at startup: keep the token and the cached profile. A 401 means the token expired
+          // and could not be renewed (the API client already tried the refresh token).
           if (e && typeof e === "object" && "status" in e && (e as { status: number }).status === 401) {
             await signOut();
           } else if (!cached) {

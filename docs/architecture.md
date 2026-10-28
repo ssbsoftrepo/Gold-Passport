@@ -189,6 +189,9 @@ Aggregates use optimistic locking (`version` column); a concurrent edit returns
   sent, so the ledger records when things really happened. Business errors (4xx) are not retried;
   they show in Profile → Pending uploads.
 - Session token in the device keystore (`expo-secure-store`); the last user profile is cached so
-  the app opens without signal.
+  the app opens without signal. With Cognito the refresh token is kept there too
+  (`src/lib/refresh.ts`): the API client renews the 1-hour ID token before it expires and retries
+  once after a 401, so a sign-in survives days offline. Failing to reach Cognito counts as a network
+  error (retried later); only a rejected refresh token asks the user to sign in again.
 - Camera-only evidence capture (`src/lib/capture.ts`), GPS via `expo-location` (works offline).
 - Push token registration (`src/lib/push.ts`) for SNS; the inbox is always the source of truth.

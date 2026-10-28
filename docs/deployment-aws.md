@@ -72,6 +72,15 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
   needs the Essentials (or Plus) feature plan.
 - Phone number as the username; attribute `phone_number` required.
 - App client without secret, auth flow `ALLOW_USER_AUTH` (plus `ALLOW_REFRESH_TOKEN_AUTH`).
+- **Refresh token validity** decides how long a phone can stay offline (or unused) before the user
+  needs a new SMS code. The mobile app keeps the refresh token in the device keystore and renews the
+  1-hour ID token with it (`GetTokensFromRefreshToken`) before it expires and whenever the API answers
+  401, so a miner who is offline all day still sends their queue in the evening. Cognito's default
+  of 30 days suits field work; shorten it only together with the business. Keep token revocation on
+  (the default): signing out revokes the refresh token.
+- Refresh token rotation is optional and supported. If you turn it on, keep the retry grace period
+  at 60 seconds: on a weak signal the answer carrying the new refresh token can be lost, and the
+  grace period lets the app retry with the old one.
 - SMS delivery uses AWS End User Messaging SMS: request production access and an origination
   identity for Peru before go-live (the sandbox only sends to verified numbers).
 - The apps send the Cognito **ID token** (it carries `phone_number`). The backend validates it
