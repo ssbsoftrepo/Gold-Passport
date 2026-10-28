@@ -44,7 +44,8 @@ so the result is a clear go or no-go.
 2. **Build:** install the `preview` profile (`npx eas-cli@latest build --profile preview --platform
    android`). It is an APK installed from a link, pointing at staging (`eas.json`). Install it on
    every phone at the office, sign in once with signal, and allow camera, location and
-   notifications.
+   notifications. Build it with a Sentry DSN, so crashes and stuck queues during the trial are
+   reported ([crash-reporting.md](crash-reporting.md)).
 3. **Bench test (half a day, at the office):** run every scenario below on an Android emulator with
    a slow network (`emulator -avd <name> -netspeed edge -netdelay gprs`) and by switching airplane mode
    on and off on two real phones. Fix anything that fails before travelling.

@@ -36,6 +36,8 @@ export class ApiError extends Error {
     public readonly fields?: Record<string, string>,
   ) {
     super(message);
+    // Crash reports name the error by this; monitoring.ts removes an ApiError's message (the server's text).
+    this.name = "ApiError";
   }
 }
 

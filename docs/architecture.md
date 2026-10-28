@@ -197,3 +197,6 @@ Aggregates use optimistic locking (`version` column); a concurrent edit returns
   (no names, numbers, coordinates or bodies; paths reduced to their pattern). It leaves the phone
   only when the user sends a field report from Profile, for field trials and support
   ([field-trial.md](field-trial.md)).
+- Crash and problem reports (`src/lib/monitoring.ts`, Sentry, off without a DSN): crashes, queued
+  work the server refused, and queues that do not empty once the phone is online; no personal data
+  ([crash-reporting.md](crash-reporting.md)).
