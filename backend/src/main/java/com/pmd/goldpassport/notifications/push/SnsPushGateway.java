@@ -6,8 +6,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.CreatePlatformEndpointRequest;
@@ -79,7 +79,7 @@ class SnsPushGateway implements PushGateway {
                     .messageStructure("json")
                     .message(json.writeValueAsString(message))
                     .build());
-        } catch (SnsException | JsonProcessingException e) {
+        } catch (SnsException | JacksonException e) {
             log.warn("SNS push failed: {}", e.getMessage());
         }
     }

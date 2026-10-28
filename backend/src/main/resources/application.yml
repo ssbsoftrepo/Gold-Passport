@@ -27,9 +27,10 @@ spring:
       max-request-size: 20MB
   jackson:
     default-property-inclusion: always
-    serialization:
-      write-dates-as-timestamps: false
-    generator:
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
+    write:
       write-bigdecimal-as-plain: true
   messages:
     basename: i18n/messages

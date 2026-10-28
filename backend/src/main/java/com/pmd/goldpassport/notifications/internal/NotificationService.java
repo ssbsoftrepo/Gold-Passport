@@ -17,9 +17,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.pmd.goldpassport.identity.CurrentUser;
 import com.pmd.goldpassport.identity.UserAccounts;
 import com.pmd.goldpassport.notifications.push.PushGateway;
@@ -122,7 +122,7 @@ public class NotificationService {
         try {
             return json.readValue(data, new TypeReference<Map<String, String>>() {
             });
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return Map.of();
         }
     }
@@ -130,7 +130,7 @@ public class NotificationService {
     private String toJson(Map<String, String> data) {
         try {
             return json.writeValueAsString(data == null ? Map.of() : data);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return "{}";
         }
     }
