@@ -183,7 +183,7 @@ describe("without signal", () => {
     });
 
     expect(result.current.items).toEqual([
-      expect.objectContaining({ label: "Checkpoint 1", error: "Transport already delivered" }),
+      expect.objectContaining({ label: "Checkpoint 1", error: "Transport already delivered", errorCode: "INVALID_STATE" }),
     ]);
     expect(sentBodies().map((c) => c.body)).toEqual([{ n: 1 }, { n: 2 }]);
 

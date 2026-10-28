@@ -56,6 +56,7 @@ whole flow at once: see [docs/local-development.md](docs/local-development.md#de
 | [docs/local-development.md](docs/local-development.md) | Running, testing and debugging locally |
 | [docs/deployment-aws.md](docs/deployment-aws.md) | Target AWS architecture and configuration |
 | [docs/field-trial.md](docs/field-trial.md) | Trying the mobile app on real phones at a mine: scenarios, pass criteria, what to collect |
+| [docs/crash-reporting.md](docs/crash-reporting.md) | Crash and problem reports from the apps (Sentry) |
 | [docs/security.md](docs/security.md) | Authentication, authorization, evidence integrity, data protection |
 | [docs/decisions.md](docs/decisions.md) | Architecture decision records |
 

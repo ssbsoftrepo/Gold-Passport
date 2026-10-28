@@ -88,7 +88,7 @@ describe("uploadTimeoutMs", () => {
 describe("toApiError", () => {
   it("keeps the problem code and detail", () => {
     const e = toApiError(422, { code: "LOT_INCOMPLETE", title: "Unprocessable", detail: "Add a photo" }, "x");
-    expect(e).toMatchObject({ status: 422, code: "LOT_INCOMPLETE", message: "Add a photo" });
+    expect(e).toMatchObject({ status: 422, code: "LOT_INCOMPLETE", message: "Add a photo", name: "ApiError" });
   });
 
   it("falls back to the HTTP status and text when the body is not a problem", () => {

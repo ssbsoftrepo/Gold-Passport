@@ -59,7 +59,8 @@
           "locationWhenInUsePermission": "PMD registra la ubicación de cada foto y de cada etapa del transporte."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": true,
