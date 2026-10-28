@@ -89,6 +89,16 @@ public class ApiClient {
         return send(req, token, null);
     }
 
+    /** Upload with an {@code Idempotency-Key} header, as the mobile offline outbox sends it. */
+    public Response uploadIdempotent(String idempotencyKey, String token, String url, String fileName,
+            String contentType, byte[] bytes, Map<String, String> params, Object... vars) throws Exception {
+        MockMultipartHttpServletRequestBuilder req = multipart(url, vars)
+                .file(new MockMultipartFile("file", fileName, contentType, bytes));
+        params.forEach(req::param);
+        req.header("Idempotency-Key", idempotencyKey);
+        return send(req, token, null);
+    }
+
     private Response send(MockHttpServletRequestBuilder req, String token, Object body) throws Exception {
         if (token != null) {
             req.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);

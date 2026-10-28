@@ -84,7 +84,13 @@ role and follow the screens; then approve it as PMD under *Identity checks*.
 
 To try offline mode: in the emulator, turn on airplane mode, take an extraction photo or record a
 transport step, then turn networking back on. The item appears under Profile → Pending uploads and
-is sent automatically.
+is sent automatically. Screens you opened before keep showing their data, with the time it was saved.
+
+To try a weak signal: in the Android emulator's *Extended controls → Cellular*, set *Network type*
+to GSM or EDGE and *Signal strength* to Poor (or start it with `-netdelay gprs -netspeed gsm`).
+Requests then time out instead of hanging, and queued items are retried every 10 s, backing off to
+5 min, until they get through. Repeats are safe: the outbox sends an `Idempotency-Key`, so an upload
+whose answer was lost is not stored twice.
 
 ## Tests
 

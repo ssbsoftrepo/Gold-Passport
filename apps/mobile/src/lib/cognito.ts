@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "./api";
+
 /**
  * Minimal Amazon Cognito passwordless (SMS OTP) sign-in using the public Cognito Identity
  * Provider JSON API, so no SDK is needed. Used when the backend reports `mode: "cognito"`.
@@ -10,7 +12,7 @@
 type CognitoConfig = { region: string; clientId: string };
 
 async function cognito<T>(cfg: CognitoConfig, target: string, body: unknown): Promise<T> {
-  const response = await fetch(`https://cognito-idp.${cfg.region}.amazonaws.com/`, {
+  const response = await fetchWithTimeout(`https://cognito-idp.${cfg.region}.amazonaws.com/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-amz-json-1.1",

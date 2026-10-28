@@ -1,6 +1,8 @@
+import { useNetInfo } from "@react-native-community/netinfo";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { tone } from "@/lib/format";
+import { isNetworkError } from "@/lib/api";
+import { formatDateTime, tone } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { colors, radius, space, type } from "@/lib/theme";
 
@@ -19,6 +21,7 @@ export function Screen({
 }) {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <OfflineBar />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -29,6 +32,18 @@ export function Screen({
         {children}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** Thin bar while the phone has no internet, so field users know their work is kept, not lost. */
+function OfflineBar() {
+  const { t } = useI18n();
+  const net = useNetInfo();
+  if (net.isConnected !== false && net.isInternetReachable !== false) return null;
+  return (
+    <View accessibilityRole="alert" style={styles.offlineBar}>
+      <Text style={styles.offlineText}>{t("common.offlineBar")}</Text>
+    </View>
   );
 }
 
@@ -137,9 +152,16 @@ export function Notice({ children, kind = "info" }: { children: React.ReactNode;
   );
 }
 
-export function ErrorNotice({ error }: { error: unknown }) {
-  const { tError } = useI18n();
+/**
+ * Shows an error. With `staleSince` (from useScreenData) a connection problem is shown as a calm
+ * "showing saved data" notice instead, since the screen still has data to work with.
+ */
+export function ErrorNotice({ error, staleSince }: { error: unknown; staleSince?: string | null }) {
+  const { t, tError, locale } = useI18n();
   if (!error) return null;
+  if (staleSince && isNetworkError(error)) {
+    return <Notice kind="wait">{t("common.showingSaved", { time: formatDateTime(staleSince, locale) })}</Notice>;
+  }
   return <Notice kind="bad">{tError(error)}</Notice>;
 }
 
@@ -224,6 +246,8 @@ export const styles = StyleSheet.create({
   choiceText: { fontSize: type.body, fontWeight: "600", color: colors.ink },
   tag: { alignSelf: "flex-start", borderRadius: radius.tag, paddingHorizontal: space.sm, paddingVertical: 3 },
   tagText: { fontSize: type.small, fontWeight: "700" },
+  offlineBar: { backgroundColor: colors.amberWash, paddingHorizontal: space.md, paddingVertical: space.xs },
+  offlineText: { color: colors.amberInk, fontWeight: "600", textAlign: "center" },
   notice: { borderRadius: radius.panel, borderWidth: 1, borderColor: colors.rule, padding: space.md },
   body: { fontSize: type.body, color: colors.ink, lineHeight: 22 },
   muted: { fontSize: type.small, color: colors.inkSoft, lineHeight: 20 },

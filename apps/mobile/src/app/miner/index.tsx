@@ -9,13 +9,13 @@ import { space } from "@/lib/theme";
 
 export default function MinerLots() {
   const { t, locale } = useI18n();
-  const { data, error, loading, reload } = useScreenData(() => call(api.GET("/api/v1/lots", {})));
+  const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/lots", {})), "lots");
   const mine = data ?? [];
 
   return (
     <Screen title={t("lots.title")} refreshing={loading} onRefresh={reload}>
       <Button label={t("lots.new")} onPress={() => router.push("/lot/new")} />
-      <ErrorNotice error={error} />
+      <ErrorNotice error={error} staleSince={staleSince} />
       {data && mine.length === 0 && <Notice>{t("lots.empty")}</Notice>}
       {mine.map((lot) => (
         <ListItem key={lot.id} onPress={() => router.push({ pathname: "/lot/[lotId]", params: { lotId: lot.id } })}>
