@@ -61,6 +61,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
   mobile:
@@ -79,5 +80,6 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx eslint src --max-warnings=0
+      - run: npm test -- --ci
       - name: Bundle Android JS (catches import/resolution errors)
         run: npx expo export --platform android --output-dir dist
