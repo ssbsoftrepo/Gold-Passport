@@ -24,6 +24,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.pmd.goldpassport.audit.LedgerQueries;
 import com.pmd.goldpassport.shared.DomainEvent;
 
+import jakarta.persistence.EntityManager;
+
 /**
  * Records every {@link DomainEvent} synchronously, inside the transaction that published it, so a
  * business change and its ledger entry commit or roll back together.
@@ -33,12 +35,14 @@ public class LedgerService implements LedgerQueries {
 
     private final LedgerEntryRepository entries;
     private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
     private final Clock clock;
     private final ObjectMapper canonical;
 
-    public LedgerService(LedgerEntryRepository entries, JdbcTemplate jdbc, Clock clock) {
+    public LedgerService(LedgerEntryRepository entries, JdbcTemplate jdbc, EntityManager entityManager, Clock clock) {
         this.entries = entries;
         this.jdbc = jdbc;
+        this.entityManager = entityManager;
         this.clock = clock;
         this.canonical = JsonMapper.builder()
                 .addModule(new JavaTimeModule())
@@ -60,6 +64,10 @@ public class LedgerService implements LedgerQueries {
     @Transactional(propagation = Propagation.REQUIRED)
     public void record(DomainEvent event) {
         String chainKey = chainKeyFor(event);
+        // Lock order is always rows first, chain lock last. Without this flush Hibernate writes the
+        // transaction's pending changes at commit, after taking the chain lock, while code that updates
+        // rows directly (e.g. the KYC result) locks the row first: the two deadlock.
+        entityManager.flush();
         // Serialize writers per chain so two concurrent events cannot fork the chain.
         jdbc.query("select pg_advisory_xact_lock(hashtext(?))", (RowCallbackHandler) rs -> { }, chainKey);
         LedgerEntry last = entries.findFirstByChainKeyOrderBySequenceDesc(chainKey).orElse(null);
