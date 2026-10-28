@@ -131,6 +131,7 @@ Tests sit next to the code in `__tests__` folders.
 | mobile `outbox.test.tsx` | The offline outbox: sends at once with signal; queues without; replays in order with each item's original idempotency key; stops at the first unanswered item so nothing overtakes it; marks business errors failed and carries on; backoff from 10 s doubling to 5 min; retries on reconnect and app foreground; pauses on an expired session and resumes on sign-in; keeps its own photo copies and deletes them once sent; survives a restart and cleans up orphaned copies |
 | mobile `api.test.ts` | Request deadlines (including the longer upload deadline), which errors are retried, problem-detail mapping, auth and idempotency headers |
 | mobile `cache.test.ts`, `hooks.test.tsx` | Saved screen data: the 40-entry limit, sign-out clearing it (also for loads still in flight), saved data first then fresh data, the newest reload winning |
+| mobile `fieldLog.test.ts`, `location.test.ts`, `ProfileScreen.test.tsx` | The field log: what is recorded (no ids, messages, coordinates or names), the 300-event limit, saving across restarts, the trial summary numbers, and the report shared from Profile |
 | web `LotPanels.test.tsx` | The collector's lab check and payment panels: who may do what in which lot state, the Peruvian decimal comma, what is sent to the API, server errors |
 | `i18n.test.ts`, `format.test.ts` (both apps) | Every text exists in Spanish and English with the same placeholders, every key a screen uses exists, number and money formats |
 

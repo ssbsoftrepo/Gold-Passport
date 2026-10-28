@@ -216,6 +216,10 @@ const es = {
   "profile.waitingForSignal": "Esperando buena señal. Se enviará automáticamente.",
   "profile.signInToSend": "Tu sesión venció. Cierra sesión y vuelve a entrar para enviar lo pendiente; no se perderá nada.",
   "profile.signOut": "Cerrar sesión",
+  "profile.fieldReport": "Informe de campo",
+  "profile.fieldReportHelp":
+    "Si algo no funcionó bien (señal, envíos, GPS), envía este informe al equipo de PMD por WhatsApp o correo. Incluye el modelo del teléfono y cómo fueron la señal, los envíos y el GPS; no incluye tu nombre, tu número, ubicaciones ni fotos.",
+  "profile.sendFieldReport": "Enviar informe de campo",
 
   "checkpoint.DEPARTED": "Salida",
   "checkpoint.ARRIVED_AT_MINER": "Llegada a la mina",
@@ -436,6 +440,10 @@ const en: Partial<Record<MessageKey, string>> = {
   "profile.waitingForSignal": "Waiting for a good signal. It will be sent automatically.",
   "profile.signInToSend": "Your session expired. Sign out and sign in again to send pending items; nothing will be lost.",
   "profile.signOut": "Sign out",
+  "profile.fieldReport": "Field report",
+  "profile.fieldReportHelp":
+    "If something did not work well (signal, sending, GPS), send this report to the PMD team by WhatsApp or email. It includes the phone model and how the signal, sending and GPS went; it does not include your name, number, locations or photos.",
+  "profile.sendFieldReport": "Send field report",
   "checkpoint.DEPARTED": "Departed",
   "checkpoint.ARRIVED_AT_MINER": "Arrived at the mine",
   "checkpoint.PICKED_UP": "Picked up",

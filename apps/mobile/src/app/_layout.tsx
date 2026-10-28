@@ -3,6 +3,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { startFieldLog } from "@/lib/fieldLog";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { OutboxProvider } from "@/lib/outbox";
 import { SessionProvider, useSession } from "@/lib/session";
@@ -44,6 +45,8 @@ function Navigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => startFieldLog(), []);
+
   return (
     <SafeAreaProvider>
       <I18nProvider>

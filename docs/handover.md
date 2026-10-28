@@ -66,8 +66,9 @@ Ordered by priority.
    Spring Modulith 2 (Jackson 3, moved test annotations). Add the Maven wrapper (`mvn -N wrapper:wrapper`).
 3. Infrastructure as code (CDK or Terraform) for the architecture in deployment-aws.md; a staging
    environment with Cognito, S3 and SNS; validate the Cognito passwordless flow in both apps.
-4. Mobile: development build on real Android phones used in the field (low-end devices, poor
-   signal); validate the offline outbox, camera and GPS accuracy at a real mine site.
+4. Mobile: field trial on real phones at a real mine (low-end devices, poor signal): offline outbox,
+   camera and GPS accuracy. Follow [field-trial.md](field-trial.md); testers send what happened
+   from Profile → Field report.
 
 **Before pilot**
 
