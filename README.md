@@ -56,6 +56,7 @@ whole flow at once: see [docs/local-development.md](docs/local-development.md#de
 | [docs/local-development.md](docs/local-development.md) | Running, testing and debugging locally |
 | [docs/deployment-aws.md](docs/deployment-aws.md) | Target AWS architecture and configuration |
 | [docs/security.md](docs/security.md) | Authentication, authorization, evidence integrity, data protection |
+| [docs/monitoring.md](docs/monitoring.md) | Metrics, alarms, dashboard and the runbook for each alarm |
 | [docs/decisions.md](docs/decisions.md) | Architecture decision records |
 
 ## Repository layout
@@ -66,6 +67,7 @@ backend/             Spring Boot modular monolith (one Java package per module, 
 apps/web/            Next.js back office + Collector/Plant portal + public passport
 apps/mobile/         Expo app for Miners and Transporters (offline outbox, camera, GPS)
 docs/                Technical documentation
+infra/               CloudFormation for alarms and the dashboard (monitoring.yml)
 scripts/             Developer scripts (run backend, regenerate API types, lint the contract)
 docker-compose.yml   Local stack (PostgreSQL, backend, web, optional LocalStack)
 .github/workflows/   CI: contract, backend, web, mobile

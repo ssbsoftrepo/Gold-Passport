@@ -58,6 +58,8 @@ Notes:
 | `PMD_KYC_PROVIDER`, `PMD_KYC_REGION` | `aws` enables Rekognition checks | `aws`, `sa-east-1` |
 | `PMD_PUSH_PROVIDER`, `PMD_PUSH_REGION` | `sns` enables push | `sns` |
 | `PMD_SNS_ANDROID_ARN`, `PMD_SNS_IOS_ARN` | SNS platform application ARNs | `arn:aws:sns:...:app/GCM/pmd-android` |
+| `PMD_METRICS_CLOUDWATCH_ENABLED`, `PMD_METRICS_CLOUDWATCH_NAMESPACE` | Metrics for the alarms ([monitoring.md](monitoring.md)) | `true`, `GoldPassport/prod` |
+| `LOGGING_STRUCTURED_FORMAT_CONSOLE` | JSON logs for CloudWatch Logs Insights | `ecs` |
 | `pmd.auth.cors-allowed-origins` | Web origin(s); set `PMD_AUTH_CORSALLOWEDORIGINS_0=https://app.example.pe` (Spring list binding) | |
 
 AWS credentials come from the ECS task role (no keys in configuration). Task role permissions:
@@ -65,6 +67,7 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
 - `s3:PutObject`, `s3:GetObject` on the evidence bucket; `kms:GenerateDataKey`, `kms:Decrypt` on its key
 - `rekognition:CompareFaces`, `rekognition:DetectText`
 - `sns:CreatePlatformEndpoint`, `sns:Publish` on the platform applications
+- `cloudwatch:PutMetricData`, limited to the environment's namespace (see [monitoring.md](monitoring.md))
 
 ## Amazon Cognito
 
@@ -127,7 +130,7 @@ Use GitHub OIDC to assume a deployment role; do not store AWS keys in GitHub.
 - [ ] Evidence bucket with Object Lock, SSE-KMS, Block Public Access
 - [ ] Separate migration and application DB roles; ledger table insert/select only
 - [ ] WAF rate limiting on `/api/v1/auth/**` and `/api/v1/public/**`
-- [ ] CloudWatch alarms: 5xx rate, p95 latency, DB connections, `event_publication` rows without
-      completion date (stuck notifications)
+- [ ] Alarms and dashboard deployed from `infra/monitoring.yml`, the alarm email confirmed and a
+      test alarm received ([monitoring.md](monitoring.md))
 - [ ] Backups restored once as a drill
 - [ ] Privacy notice and consent text reviewed for Ley 29733; data retention periods agreed
