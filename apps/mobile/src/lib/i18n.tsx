@@ -460,6 +460,10 @@ const en: Partial<Record<MessageKey, string>> = {
 };
 
 export type Locale = "es" | "en";
+
+/** Both dictionaries, for checks that every key and placeholder is translated. */
+export const messages = { es, en };
+
 type Params = Record<string, string | number | null | undefined>;
 
 export function translate(locale: Locale, key: string, params?: Params): string {

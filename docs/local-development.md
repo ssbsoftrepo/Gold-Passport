@@ -117,9 +117,25 @@ mvn -f backend/pom.xml verify
 Front ends:
 
 ```bash
-cd apps/web && npm run typecheck && npm run lint && npm run build
-cd apps/mobile && npm run typecheck && npx eslint src && npx expo export --platform android
+cd apps/web && npm run typecheck && npm run lint && npm test && npm run build
+cd apps/mobile && npm run typecheck && npx eslint src && npm test && npx expo export --platform android
 ```
+
+The app tests run without a backend, a device or an emulator. Mobile uses Jest (`jest-expo`) with
+in-memory stand-ins for device storage, files and connectivity (`apps/mobile/src/test`); web uses
+Vitest with jsdom and a fake API that records every request (`apps/web/src/test/server.ts`).
+Tests sit next to the code in `__tests__` folders.
+
+| Test | What it checks |
+| --- | --- |
+| mobile `outbox.test.tsx` | The offline outbox: sends at once with signal; queues without; replays in order with each item's original idempotency key; stops at the first unanswered item so nothing overtakes it; marks business errors failed and carries on; backoff from 10 s doubling to 5 min; retries on reconnect and app foreground; pauses on an expired session and resumes on sign-in; keeps its own photo copies and deletes them once sent; survives a restart and cleans up orphaned copies |
+| mobile `api.test.ts` | Request deadlines (including the longer upload deadline), which errors are retried, problem-detail mapping, auth and idempotency headers |
+| mobile `cache.test.ts`, `hooks.test.tsx` | Saved screen data: the 40-entry limit, sign-out clearing it (also for loads still in flight), saved data first then fresh data, the newest reload winning |
+| web `LotPanels.test.tsx` | The collector's lab check and payment panels: who may do what in which lot state, the Peruvian decimal comma, what is sent to the API, server errors |
+| `i18n.test.ts`, `format.test.ts` (both apps) | Every text exists in Spanish and English with the same placeholders, every key a screen uses exists, number and money formats |
+
+These tests prove the logic; they do not replace trying the app on real phones with a poor signal
+(see the field trial plan in [handover.md](handover.md)).
 
 ## Trying the AWS adapters locally (LocalStack)
 
