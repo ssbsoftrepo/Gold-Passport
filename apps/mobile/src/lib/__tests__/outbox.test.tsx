@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, renderHook } from "@testing-library/react-native";
 import { AppState, type AppStateStatus } from "react-native";
 import { ApiError, NetworkError, postJson, setAccessToken, uploadMultipart } from "../api";
+import { fieldEvents, resetFieldLogForTests } from "../fieldLog";
 import { OutboxProvider, useOutbox, type OutboxItem } from "../outbox";
 import { fakeFiles } from "@/test/fileSystem";
 import { emitNetworkChange } from "@/test/netInfo";
@@ -56,6 +57,7 @@ beforeEach(async () => {
   post.mockReset();
   upload.mockReset();
   fakeFiles.reset();
+  resetFieldLogForTests();
   await AsyncStorage.clear();
   setAccessToken("token");
   jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
@@ -207,6 +209,26 @@ describe("without signal", () => {
     });
     expect(result.current.items).toEqual([]);
     expect(await stored()).toEqual([]);
+  });
+});
+
+describe("field log", () => {
+  it("notes each attempt, how it ended and how long it took", async () => {
+    post.mockRejectedValueOnce(new NetworkError("slow", true));
+    const { result } = await renderOutbox();
+    await act(async () => {
+      await result.current.submit(checkpoint(1), meta(1));
+    });
+    post.mockResolvedValue({});
+    await act(async () => {
+      await result.current.syncNow();
+    });
+
+    expect(fieldEvents()).toEqual([
+      expect.objectContaining({ type: "send", path: "/api/v1/transports/t1/checkpoints", replay: false, outcome: "retry", error: "TIMEOUT" }),
+      expect.objectContaining({ type: "queued", path: "/api/v1/transports/t1/checkpoints", bytes: null }),
+      expect.objectContaining({ type: "send", replay: true, outcome: "sent", error: null, ms: expect.any(Number) }),
+    ]);
   });
 });
 

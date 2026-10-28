@@ -4,6 +4,7 @@ import { Directory, File, Paths } from "expo-file-system";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { ApiError, isTransientError, onAccessTokenChange, postJson, uploadMultipart } from "./api";
+import { errorName, pathPattern, record, sendOutcome } from "./fieldLog";
 
 /**
  * Offline outbox for field actions (extraction photos, GPS checkpoints, handover).
@@ -67,9 +68,30 @@ function outboxDir(): Directory {
   return dir;
 }
 
-async function send(item: NewItem, idempotencyKey: string): Promise<unknown> {
-  if (item.kind === "json") return postJson(item.path, item.body, idempotencyKey);
-  return uploadMultipart(item.path, { uri: item.fileUri, name: item.fileName, type: item.mimeType }, item.fields, idempotencyKey);
+function photoBytes(item: NewItem): number | null {
+  if (item.kind !== "upload") return null;
+  try {
+    return new File(item.fileUri).size;
+  } catch {
+    return null;
+  }
+}
+
+/** Sends one item and notes in the field log how it went and how long it took. */
+async function send(item: NewItem, idempotencyKey: string, replay: boolean): Promise<unknown> {
+  const started = Date.now();
+  const note = { type: "send" as const, path: pathPattern(item.path), replay, bytes: photoBytes(item) };
+  try {
+    const result =
+      item.kind === "json"
+        ? await postJson(item.path, item.body, idempotencyKey)
+        : await uploadMultipart(item.path, { uri: item.fileUri, name: item.fileName, type: item.mimeType }, item.fields, idempotencyKey);
+    record({ ...note, outcome: "sent", ms: Date.now() - started, error: null });
+    return result;
+  } catch (e) {
+    record({ ...note, outcome: sendOutcome(e), ms: Date.now() - started, error: errorName(e) });
+    throw e;
+  }
 }
 
 /**
@@ -163,7 +185,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
       for (const item of [...itemsRef.current]) {
         if (item.error) continue;
         try {
-          await send(item, item.id);
+          await send(item, item.id, true);
           if (item.kind === "upload") {
             try {
               new File(item.fileUri).delete();
@@ -234,7 +256,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
       // Keep strict ordering: if something is already queued, queue behind it.
       if (!hasPending(itemsRef.current) && !authBlocked.current) {
         try {
-          return { status: "sent", result: (await send(item, id)) as T };
+          return { status: "sent", result: (await send(item, id, false)) as T };
         } catch (e) {
           if (isUnauthorized(e)) setBlocked(true);
           else if (!isTransientError(e)) throw e;
@@ -251,6 +273,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
           stored = { ...item, fileUri: target.uri };
         }
         await persist([...itemsRef.current, { ...stored, id, createdAt: new Date().toISOString(), ...meta }]);
+        record({ type: "queued", path: pathPattern(item.path), bytes: photoBytes(stored) });
       } finally {
         copying.current.delete(id);
       }

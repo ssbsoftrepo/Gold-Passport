@@ -192,3 +192,8 @@ Aggregates use optimistic locking (`version` column); a concurrent edit returns
   the app opens without signal.
 - Camera-only evidence capture (`src/lib/capture.ts`), GPS via `expo-location` (works offline).
 - Push token registration (`src/lib/push.ts`) for SNS; the inbox is always the source of truth.
+- Field log (`src/lib/fieldLog.ts`): the last 300 connectivity changes, send attempts (result,
+  duration, size) and GPS readings (accuracy, time to fix), kept on the phone with no personal data
+  (no names, numbers, coordinates or bodies; paths reduced to their pattern). It leaves the phone
+  only when the user sends a field report from Profile, for field trials and support
+  ([field-trial.md](field-trial.md)).
