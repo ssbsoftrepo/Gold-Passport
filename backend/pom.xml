@@ -65,6 +65,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Metrics to Amazon CloudWatch (off unless PMD_METRICS_CLOUDWATCH_ENABLED=true; see monitoring module) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-cloudwatch2</artifactId>
+        </dependency>
 
         <!-- Persistence -->
         <dependency>

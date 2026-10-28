@@ -118,3 +118,10 @@ pmd:
   lab:
     purity-tolerance-pct: 0.5
     weight-tolerance-pct: 1.0
+  metrics:
+    # Off on laptops; in AWS set PMD_METRICS_CLOUDWATCH_ENABLED=true (see docs/monitoring.md).
+    cloudwatch:
+      enabled: ${PMD_METRICS_CLOUDWATCH_ENABLED:false}
+      namespace: ${PMD_METRICS_CLOUDWATCH_NAMESPACE:GoldPassport}
+      step: 1m
+    events-stuck-after: 15m

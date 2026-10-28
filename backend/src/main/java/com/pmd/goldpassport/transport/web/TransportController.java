@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.pmd.goldpassport.identity.CurrentUser;
 import com.pmd.goldpassport.identity.UserAccounts;
+import com.pmd.goldpassport.monitoring.FieldSync;
 import com.pmd.goldpassport.transport.internal.CheckpointType;
 import com.pmd.goldpassport.transport.internal.Transport;
 import com.pmd.goldpassport.transport.internal.TransportCheckpoint;
@@ -38,10 +40,12 @@ class TransportController {
 
     private final TransportService transports;
     private final UserAccounts users;
+    private final FieldSync fieldSync;
 
-    TransportController(TransportService transports, UserAccounts users) {
+    TransportController(TransportService transports, UserAccounts users, FieldSync fieldSync) {
         this.transports = transports;
         this.users = users;
+        this.fieldSync = fieldSync;
     }
 
     record TransportRequest(@NotNull UUID minerUserId, @NotNull UUID collectorUserId, LocalDate plannedPickupDate,
@@ -127,12 +131,12 @@ class TransportController {
 
     @PostMapping("/api/v1/transports/{transportId}/depart")
     TransportDto depart(CurrentUser me, @PathVariable UUID transportId, @Valid @RequestBody GeoReading body) {
-        return toDto(transports.depart(me, transportId, body.toReading()));
+        return gpsStep(body, () -> transports.depart(me, transportId, body.toReading()));
     }
 
     @PostMapping("/api/v1/transports/{transportId}/arrive-at-miner")
     TransportDto arriveAtMiner(CurrentUser me, @PathVariable UUID transportId, @Valid @RequestBody GeoReading body) {
-        return toDto(transports.arriveAtMiner(me, transportId, body.toReading()));
+        return gpsStep(body, () -> transports.arriveAtMiner(me, transportId, body.toReading()));
     }
 
     @PostMapping("/api/v1/transports/{transportId}/approve-pickup")
@@ -147,18 +151,18 @@ class TransportController {
 
     @PostMapping("/api/v1/transports/{transportId}/pickup")
     TransportDto pickup(CurrentUser me, @PathVariable UUID transportId, @Valid @RequestBody GeoReading body) {
-        return toDto(transports.pickUp(me, transportId, body.toReading()));
+        return gpsStep(body, () -> transports.pickUp(me, transportId, body.toReading()));
     }
 
     @PostMapping("/api/v1/transports/{transportId}/location")
     TransportDto location(CurrentUser me, @PathVariable UUID transportId, @Valid @RequestBody GeoReading body) {
-        return toDto(transports.recordLocation(me, transportId, body.toReading()));
+        return gpsStep(body, () -> transports.recordLocation(me, transportId, body.toReading()));
     }
 
     @PostMapping("/api/v1/transports/{transportId}/arrive-at-collector")
     TransportDto arriveAtCollector(CurrentUser me, @PathVariable UUID transportId,
             @Valid @RequestBody GeoReading body) {
-        return toDto(transports.arriveAtCollector(me, transportId, body.toReading()));
+        return gpsStep(body, () -> transports.arriveAtCollector(me, transportId, body.toReading()));
     }
 
     @PostMapping("/api/v1/transports/{transportId}/receive")
@@ -174,6 +178,13 @@ class TransportController {
     @GetMapping("/api/v1/admin/transports")
     List<TransportDto> adminList(@RequestParam(required = false) TransportStatus status) {
         return toDtos(transports.listAll(status));
+    }
+
+    /** Saves a GPS step and records how long it waited on the phone. */
+    private TransportDto gpsStep(GeoReading body, Supplier<Transport> save) {
+        Transport saved = save.get();
+        fieldSync.arrived(FieldSync.GPS_STEP, body.recordedAt());
+        return toDto(saved);
     }
 
     private TransportDto toDto(Transport t) {

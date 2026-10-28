@@ -25,6 +25,7 @@ import com.pmd.goldpassport.lots.LotStatus;
 import com.pmd.goldpassport.lots.internal.Lot;
 import com.pmd.goldpassport.lots.internal.LotEvidence;
 import com.pmd.goldpassport.lots.internal.LotService;
+import com.pmd.goldpassport.monitoring.FieldSync;
 import com.pmd.goldpassport.shared.Role;
 
 import jakarta.validation.Valid;
@@ -36,10 +37,12 @@ class LotController {
 
     private final LotService lots;
     private final UserAccounts users;
+    private final FieldSync fieldSync;
 
-    LotController(LotService lots, UserAccounts users) {
+    LotController(LotService lots, UserAccounts users, FieldSync fieldSync) {
         this.lots = lots;
         this.users = users;
+        this.fieldSync = fieldSync;
     }
 
     record CreateLotRequest(@NotBlank @Size(max = 200) String mineSiteName, @Size(max = 2000) String description) {
@@ -85,7 +88,9 @@ class LotController {
             @RequestParam("longitude") double longitude,
             @RequestParam(value = "accuracyMeters", required = false) Double accuracyMeters,
             @RequestParam(value = "capturedAt", required = false) Instant capturedAt) {
-        return LotEvidenceDto.of(lots.addPhoto(me, lotId, file, latitude, longitude, accuracyMeters, capturedAt));
+        LotEvidence saved = lots.addPhoto(me, lotId, file, latitude, longitude, accuracyMeters, capturedAt);
+        fieldSync.arrived(FieldSync.PHOTO, capturedAt);
+        return LotEvidenceDto.of(saved);
     }
 
     @PostMapping("/api/v1/lots/{lotId}/complete")
