@@ -102,13 +102,18 @@ When the scan fails:
    decision in `osv-scanner.toml`: the advisory id, the reason and an expiry date at most 90 days
    ahead. When it expires the scan fails again and the decision is reviewed.
 
-Accepted today (both only in Expo's build tools, not in the app that ships to phones, and revisited
-with the next Expo SDK):
+Accepted today (until 2027-01-26):
 
 | Advisory | Package | Why it stays |
 | --- | --- | --- |
-| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high) | zod 3.25, in `@expo/cli` | Fixed only in zod 4, which the Expo command-line tool does not support; it only validates our own project files |
-| [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low) | deepmerge 4.3.1, in `@expo/config` | No fixed version published; it only merges our own app config |
+| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high) | zod 3.25, in `@expo/cli` | Fixed only in zod 4, which the Expo command-line tool does not support; it runs at build time on our own project files, not in the app on phones. Revisit with the next Expo SDK |
+| [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low) | deepmerge 4.3.1, in `@expo/config` | No fixed version published; it merges our own app config at build time |
+| [GHSA-j9f9-w8pj-32f8](https://github.com/advisories/GHSA-j9f9-w8pj-32f8) (critical) | Spring Framework 6.2 `spring-webmvc` | Needs Server-Sent Events with view fragments; the backend is a JSON API with neither. No open-source 6.2 fix; gone with the Spring Boot 4 upgrade (Spring Framework 7.0.9) |
+| [GHSA-pc63-qcmh-9cmg](https://github.com/advisories/GHSA-pc63-qcmh-9cmg) (critical) | Spring Framework 6.2 `spring-webmvc` | Needs `XsltView`; the backend renders no views. Same fix as above |
+
+Spring Boot manages most backend versions; `backend/pom.xml` overrides a few (Tomcat, Jackson,
+Netty, the PostgreSQL driver, Log4j API, Commons Lang, Commons Compress) where security fixes are
+newer than the Spring Boot release. Remove an override once Spring Boot manages the same or newer.
 
 ## Hardening backlog
 
