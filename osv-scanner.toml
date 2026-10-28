@@ -1,0 +1,35 @@
+# Vulnerabilities accepted for now, checked by .github/workflows/dependency-scan.yml.
+# Add an entry only when no fixed version can be used yet; give the reason and an expiry date
+# (90 days at most). When the date passes the scan fails again, so the decision is reviewed.
+# See docs/security.md#dependency-vulnerabilities.
+
+[[IgnoredVulns]]
+id = "GHSA-mrhx-c7xc-m3w5"
+ignoreUntil = 2027-01-26
+reason = """\
+  zod 3.25 (memory exhaustion validating oversized collections), used only by the Expo command-line \
+  tool (@expo/cli) at build time, on our own project files. Fixed only in zod 4, which @expo/cli \
+  does not support. Revisit with the next Expo SDK."""
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2027-01-26
+reason = """\
+  deepmerge 4.3.1 (prototype poisoning), used by @expo/config at build time to merge our own app \
+  config. No fixed version is published. Revisit with the next Expo SDK or a deepmerge release."""
+
+[[IgnoredVulns]]
+id = "GHSA-j9f9-w8pj-32f8"
+ignoreUntil = 2027-01-26
+reason = """\
+  Spring Framework 6.2 (CVE-2026-47890): stream corruption with Server-Sent Events rendering view \
+  fragments. The backend is a JSON API (@RestController only) with no SSE and no view rendering. No \
+  open-source 6.2 fix; fixed in Spring Framework 7.0.9, which comes with the Spring Boot 4 upgrade."""
+
+[[IgnoredVulns]]
+id = "GHSA-pc63-qcmh-9cmg"
+ignoreUntil = 2027-01-26
+reason = """\
+  Spring Framework 6.2 (CVE-2026-47884): path limitation in XsltView. The backend uses no XsltView \
+  and renders no views. No open-source 6.2 fix; fixed in Spring Framework 7.0.9, which comes with \
+  the Spring Boot 4 upgrade."""

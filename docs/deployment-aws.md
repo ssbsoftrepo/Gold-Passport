@@ -131,3 +131,5 @@ Use GitHub OIDC to assume a deployment role; do not store AWS keys in GitHub.
       completion date (stuck notifications)
 - [ ] Backups restored once as a drill
 - [ ] Privacy notice and consent text reviewed for Ley 29733; data retention periods agreed
+- [ ] Dependency scan green on `main`; Dependabot alerts and security updates turned on
+      ([security.md](security.md#dependency-vulnerabilities))
