@@ -66,17 +66,28 @@ data).
 device times within a clock-skew limit and keeps its own receipt time. Business rejections of a
 queued action are shown to the user rather than retried.
 
-## ADR-007: Spring Boot 3.5 line
+## ADR-007: Spring Boot 4.1 line
 
-**Context.** Code was written without access to Maven Central, so only APIs known to be stable were
-used.
+**Context.** The code was first written on Spring Boot 3.5, whose open-source support ended in
+mid-2026: it no longer gets free security fixes.
 
-**Decision.** Spring Boot 3.5.x with Spring Modulith 1.4.x and Java 21.
+**Decision.** Spring Boot 4.1.x with Spring Modulith 2.1.x, springdoc-openapi 3.x and Java 21
+(upgraded October 2026).
 
-**Consequences.** Spring Boot 3.5 open-source support ends around mid-2026 (check
-https://spring.io/projects/spring-boot#support); plan the move to
-Spring Boot 4.x / Spring Modulith 2.x early (see handover.md). The modules use only mainstream APIs,
-so the upgrade is mostly dependency and package changes (Jackson 3, test annotations).
+**Consequences.**
+
+- JSON is handled by Jackson 3 (`tools.jackson.*` packages; its exceptions are unchecked). The
+  annotations keep their `com.fasterxml.jackson.annotation` package. springdoc still brings
+  Jackson 2 for its own use; application code must import only Jackson 3.
+- API responses are unchanged, except in error bodies: `"type": "about:blank"` is left out (RFC 9457:
+  a missing `type` means the same) and the 422 `title` reads "Unprocessable Content" (RFC 9110).
+  The apps rely on `code` only. Ledger payloads are byte-for-byte the same format;
+  `LedgerPayloadFormatTest` keeps it that way across future upgrades.
+- Starters are modular (`spring-boot-starter-webmvc`, `-flyway`, `-security-oauth2-resource-server`,
+  `-webmvc-test`), and Testcontainers 2 renamed its artifacts.
+- Each Spring Boot minor line gets about a year of open-source support
+  (https://spring.io/projects/spring-boot#support): move to the next 4.x minor as routine
+  maintenance.
 
 ## ADR-008: Web app is client-rendered against the API
 

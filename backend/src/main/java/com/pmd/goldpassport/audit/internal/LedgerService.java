@@ -15,12 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 import com.pmd.goldpassport.audit.LedgerQueries;
 import com.pmd.goldpassport.shared.DomainEvent;
 
@@ -41,10 +41,9 @@ public class LedgerService implements LedgerQueries {
         this.jdbc = jdbc;
         this.clock = clock;
         this.canonical = JsonMapper.builder()
-                .addModule(new JavaTimeModule())
                 .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
                 .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
-                .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+                .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, false)
                 .build();
     }
 
@@ -87,14 +86,15 @@ public class LedgerService implements LedgerQueries {
                 .toList());
     }
 
-    private String payload(DomainEvent event) {
+    /** The canonical JSON stored and hashed in the ledger; package-private for {@code LedgerPayloadFormatTest}. */
+    String payload(DomainEvent event) {
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("aggregateType", event.aggregateType());
         facts.put("aggregateId", event.aggregateId());
         facts.put("details", event.details() == null ? Map.of() : event.details());
         try {
             return canonical.writeValueAsString(facts);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize ledger payload for " + event.eventType(), e);
         }
     }

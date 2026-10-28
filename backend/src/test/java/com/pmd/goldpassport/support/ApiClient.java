@@ -11,12 +11,12 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /** Small HTTP helper so integration tests read like the user journey. */
 public class ApiClient {
@@ -64,9 +64,9 @@ public class ApiClient {
     /** OTP login (local mode with expose-code=true returns the code). Returns the bearer token. */
     public String login(String phone) throws Exception {
         Response challenge = send(MockMvcRequestBuilders.post("/api/v1/auth/otp/request"), null, Map.of("phone", phone));
-        String code = challenge.body().get("devCode").asText();
+        String code = challenge.body().get("devCode").asString();
         Response token = send(MockMvcRequestBuilders.post("/api/v1/auth/otp/verify"), null, Map.of("phone", phone, "code", code));
-        return token.body().get("accessToken").asText();
+        return token.body().get("accessToken").asString();
     }
 
     public Response get(String token, String url, Object... vars) throws Exception {
@@ -89,7 +89,7 @@ public class ApiClient {
         return send(req, token, null);
     }
 
-    private Response send(MockHttpServletRequestBuilder req, String token, Object body) throws Exception {
+    private Response send(AbstractMockHttpServletRequestBuilder<?> req, String token, Object body) throws Exception {
         if (token != null) {
             req.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         }
@@ -98,7 +98,7 @@ public class ApiClient {
         }
         MvcResult result = mvc.perform(req).andReturn();
         String content = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        JsonNode node = content.isBlank() ? com.fasterxml.jackson.databind.node.NullNode.getInstance() : json.readTree(content);
+        JsonNode node = content.isBlank() ? tools.jackson.databind.node.NullNode.getInstance() : json.readTree(content);
         return new Response(result.getResponse().getStatus(), node);
     }
 }
