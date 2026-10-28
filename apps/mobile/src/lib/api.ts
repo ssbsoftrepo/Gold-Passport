@@ -111,14 +111,18 @@ export function isNetworkError(e: unknown): boolean {
   return e instanceof NetworkError || e instanceof TypeError || (e instanceof Error && /network request failed/i.test(e.message));
 }
 
+/** 409 codes that mean "try again", not "this can never succeed". */
+const RETRYABLE_CONFLICTS = new Set(["IDEMPOTENCY_KEY_IN_USE", "CONCURRENT_MODIFICATION"]);
+
 /**
  * True when sending the same request again later may succeed: no answer, a server or gateway error,
- * rate limiting, or the server still working on an earlier attempt with the same idempotency key.
+ * rate limiting, the server still working on an earlier attempt with the same idempotency key, or a
+ * write that lost an optimistic-locking race with someone else's change.
  */
 export function isTransientError(e: unknown): boolean {
   if (isNetworkError(e)) return true;
   if (!(e instanceof ApiError)) return false;
-  return e.status >= 500 || e.status === 408 || e.status === 429 || e.code === "IDEMPOTENCY_KEY_IN_USE";
+  return e.status >= 500 || e.status === 408 || e.status === 429 || RETRYABLE_CONFLICTS.has(e.code);
 }
 
 /** Header that makes a POST safe to repeat: the server answers a repeated key with the first result. */

@@ -1,6 +1,6 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readCache, writeCache } from "./cache";
+import { cacheGeneration, readCache, writeCache } from "./cache";
 import { useOutbox } from "./outbox";
 
 /**
@@ -9,6 +9,9 @@ import { useOutbox } from "./outbox";
  * data is also saved on the device: the screen shows it at once (even after a restart without
  * signal) while fresh data loads. `staleSince` is when the shown data was loaded, set while the
  * latest refresh failed.
+ *
+ * Reloads can overlap (focus, pull-to-refresh, outbox sync) and on a weak signal finish in any
+ * order; only the newest one, or a later `setData` from an action, decides what is shown.
  */
 export function useScreenData<T>(load: () => Promise<T>, cacheKey?: string) {
   const [data, setDataState] = useState<T | undefined>(undefined);
@@ -17,17 +20,28 @@ export function useScreenData<T>(load: () => Promise<T>, cacheKey?: string) {
   const [loading, setLoading] = useState(false);
   const loadRef = useRef(load);
   const hasData = useRef(false);
+  const latest = useRef(0);
+  const inFlight = useRef(0);
   const { onSynced } = useOutbox();
 
-  const setData = useCallback(
-    (next: T) => {
+  const show = useCallback(
+    (next: T, generation: number) => {
       const now = new Date().toISOString();
       hasData.current = true;
       setDataState(next);
       setLoadedAt(now);
-      if (cacheKey) void writeCache(cacheKey, next, now);
+      if (cacheKey) void writeCache(cacheKey, next, now, generation);
     },
     [cacheKey],
+  );
+
+  /** For results of actions: newer than any reload still in flight, so those are ignored. */
+  const setData = useCallback(
+    (next: T) => {
+      latest.current += 1;
+      show(next, cacheGeneration());
+    },
+    [show],
   );
 
   useEffect(() => {
@@ -35,24 +49,30 @@ export function useScreenData<T>(load: () => Promise<T>, cacheKey?: string) {
   });
 
   const reload = useCallback(async () => {
+    const mine = ++latest.current;
+    const generation = cacheGeneration();
+    inFlight.current += 1;
     setLoading(true);
-    if (cacheKey && !hasData.current) {
-      const cached = await readCache<T>(cacheKey);
-      if (cached && !hasData.current) {
-        hasData.current = true;
-        setDataState(cached.data);
-        setLoadedAt(cached.savedAt);
-      }
-    }
     try {
-      setData(await loadRef.current());
+      if (cacheKey && !hasData.current) {
+        const cached = await readCache<T>(cacheKey);
+        if (cached && !hasData.current) {
+          hasData.current = true;
+          setDataState(cached.data);
+          setLoadedAt(cached.savedAt);
+        }
+      }
+      const result = await loadRef.current();
+      if (mine !== latest.current) return; // something newer has been shown
+      show(result, generation);
       setError(null);
     } catch (e) {
-      setError(e);
+      if (mine === latest.current) setError(e);
     } finally {
-      setLoading(false);
+      inFlight.current -= 1;
+      if (inFlight.current === 0) setLoading(false);
     }
-  }, [cacheKey, setData]);
+  }, [cacheKey, show]);
 
   useFocusEffect(
     useCallback(() => {

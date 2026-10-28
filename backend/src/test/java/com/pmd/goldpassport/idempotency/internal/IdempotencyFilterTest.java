@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
@@ -105,6 +106,23 @@ class IdempotencyFilterTest {
     }
 
     @Test
+    void aTakenOverAttemptThatFinishesLateCannotReleaseOrOverwriteTheKey() throws Exception {
+        IdempotencyStore.Started slow = (IdempotencyStore.Started) store.begin("user-1", "k-8",
+                "POST /api/v1/lots/1/photos", now.minus(Duration.ofHours(1)), now.minus(Duration.ofHours(2)));
+
+        // The retry takes the key over and succeeds.
+        run(post("/api/v1/lots/1/photos", "k-8"), respond(201, "{\"id\":\"retry\"}"));
+        // Then the slow first attempt finishes, successfully or not.
+        store.complete("user-1", "k-8", slow.attemptId(), 201, "application/json",
+                "{\"id\":\"slow\"}".getBytes(StandardCharsets.UTF_8), now);
+        store.release("user-1", "k-8", slow.attemptId());
+
+        MockHttpServletResponse repeat = run(post("/api/v1/lots/1/photos", "k-8"), respond(201, "{}"));
+        assertThat(repeat.getContentAsString()).isEqualTo("{\"id\":\"retry\"}");
+        assertThat(executions).hasValue(1);
+    }
+
+    @Test
     void reusingAKeyForAnotherOperationIsRejected() throws Exception {
         run(post("/api/v1/transports/1/depart", "k-6"), respond(200, "{}"));
 
@@ -178,8 +196,8 @@ class IdempotencyFilterTest {
     /** Same semantics as {@link JdbcIdempotencyStore}, in memory. */
     private static final class InMemoryStore implements IdempotencyStore {
 
-        private record Row(String fingerprint, boolean completed, int status, String contentType, byte[] body,
-                Instant updatedAt) {
+        private record Row(String fingerprint, UUID attemptId, boolean completed, int status, String contentType,
+                byte[] body, Instant updatedAt) {
         }
 
         final Map<String, Row> rows = new HashMap<>();
@@ -189,8 +207,9 @@ class IdempotencyFilterTest {
             String id = owner + "/" + key;
             Row row = rows.get(id);
             if (row == null) {
-                rows.put(id, new Row(fingerprint, false, 0, null, null, now));
-                return new Started();
+                UUID attemptId = UUID.randomUUID();
+                rows.put(id, new Row(fingerprint, attemptId, false, 0, null, null, now));
+                return new Started(attemptId);
             }
             if (!row.fingerprint().equals(fingerprint)) {
                 return new Mismatch();
@@ -199,21 +218,28 @@ class IdempotencyFilterTest {
                 return new Replay(row.status(), row.contentType(), row.body());
             }
             if (row.updatedAt().isBefore(staleBefore)) {
-                rows.put(id, new Row(fingerprint, false, 0, null, null, now));
-                return new Started();
+                UUID attemptId = UUID.randomUUID();
+                rows.put(id, new Row(fingerprint, attemptId, false, 0, null, null, now));
+                return new Started(attemptId);
             }
             return new InProgress();
         }
 
         @Override
-        public void complete(String owner, String key, int status, String contentType, byte[] body, Instant now) {
-            String id = owner + "/" + key;
-            rows.put(id, new Row(rows.get(id).fingerprint(), true, status, contentType, body, now));
+        public void complete(String owner, String key, UUID attemptId, int status, String contentType, byte[] body,
+                Instant now) {
+            rows.computeIfPresent(owner + "/" + key, (k, row) -> owns(row, attemptId)
+                    ? new Row(row.fingerprint(), attemptId, true, status, contentType, body, now)
+                    : row);
         }
 
         @Override
-        public void release(String owner, String key) {
-            rows.computeIfPresent(owner + "/" + key, (k, row) -> row.completed() ? row : null);
+        public void release(String owner, String key, UUID attemptId) {
+            rows.computeIfPresent(owner + "/" + key, (k, row) -> owns(row, attemptId) ? null : row);
+        }
+
+        private static boolean owns(Row row, UUID attemptId) {
+            return !row.completed() && row.attemptId().equals(attemptId);
         }
 
         @Override

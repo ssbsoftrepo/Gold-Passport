@@ -7,6 +7,7 @@ create table idempotency.request_keys (
     idem_key               varchar(128) not null,
     fingerprint            varchar(500) not null,  -- method and path the key was first used for
     state                  varchar(10)  not null,  -- PENDING while running, COMPLETED with a stored response
+    attempt_id             uuid         not null,  -- the attempt that owns the key; a taken-over attempt can no longer finish it
     response_status        integer,
     response_content_type  varchar(200),
     response_body          bytea,

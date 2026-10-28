@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -88,7 +89,8 @@ class IdempotencyFilter extends OncePerRequestFilter {
         String fingerprint = request.getMethod() + " " + request.getRequestURI();
         Instant now = clock.instant();
         switch (store.begin(owner, key, fingerprint, now, now.minus(props.inProgressTimeout()))) {
-            case IdempotencyStore.Started started -> execute(request, response, chain, owner, key);
+            case IdempotencyStore.Started started ->
+                    execute(request, response, chain, owner, key, started.attemptId());
             case IdempotencyStore.Replay replay -> replay(response, replay);
             case IdempotencyStore.InProgress inProgress -> {
                 response.setHeader("Retry-After", "5");
@@ -101,7 +103,7 @@ class IdempotencyFilter extends OncePerRequestFilter {
     }
 
     private void execute(HttpServletRequest request, HttpServletResponse response, FilterChain chain, String owner,
-            String key) throws ServletException, IOException {
+            String key, UUID attemptId) throws ServletException, IOException {
         ContentCachingResponseWrapper wrapper = new ContentCachingResponseWrapper(response);
         boolean remembered = false;
         try {
@@ -109,8 +111,8 @@ class IdempotencyFilter extends OncePerRequestFilter {
             int status = wrapper.getStatus();
             if (status >= 200 && status < 300) {
                 try {
-                    store.complete(owner, key, status, wrapper.getContentType(), wrapper.getContentAsByteArray(),
-                            clock.instant());
+                    store.complete(owner, key, attemptId, status, wrapper.getContentType(),
+                            wrapper.getContentAsByteArray(), clock.instant());
                     remembered = true;
                 } catch (RuntimeException e) {
                     // The change is committed; answer normally. A repeat would run it again.
@@ -120,7 +122,7 @@ class IdempotencyFilter extends OncePerRequestFilter {
         } finally {
             if (!remembered) {
                 try {
-                    store.release(owner, key);
+                    store.release(owner, key, attemptId);
                 } catch (RuntimeException e) {
                     log.warn("Could not release idempotency key {}", key, e);
                 }

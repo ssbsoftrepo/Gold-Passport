@@ -72,6 +72,26 @@ async function send(item: NewItem, idempotencyKey: string): Promise<unknown> {
   return uploadMultipart(item.path, { uri: item.fileUri, name: item.fileName, type: item.mimeType }, item.fields, idempotencyKey);
 }
 
+/**
+ * Deletes photo copies no queued item owns: left behind when the app was killed between copying a
+ * photo and saving the queue, or when saving the queue failed. Copies are named `<item id>-<name>`;
+ * a file is kept while any queued item, or a submit still in progress (`busyIds`), has that id.
+ */
+function removeOrphanFiles(items: OutboxItem[], busyIds: Set<string>) {
+  try {
+    const dir = new Directory(Paths.document, "outbox");
+    if (!dir.exists) return;
+    const owners = [...items.map((i) => i.id), ...busyIds];
+    for (const entry of dir.list()) {
+      if (!(entry instanceof File)) continue;
+      if (owners.some((id) => entry.name.startsWith(`${id}-`))) continue;
+      entry.delete();
+    }
+  } catch {
+    // best effort; tried again at the next start
+  }
+}
+
 function hasPending(items: OutboxItem[]): boolean {
   return items.some((i) => !i.error);
 }
@@ -95,6 +115,8 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelay = useRef(FIRST_RETRY_MS);
   const syncRef = useRef<() => Promise<void>>(async () => undefined);
+  /** Ids of submits between copying their photo and saving the queue. */
+  const copying = useRef(new Set<string>());
 
   const setBlocked = useCallback((blocked: boolean) => {
     authBlocked.current = blocked;
@@ -183,6 +205,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
       const loaded = raw ? (JSON.parse(raw) as OutboxItem[]) : [];
       itemsRef.current = loaded;
       setItems(loaded);
+      removeOrphanFiles(loaded, copying.current);
       retrySoon();
     });
     const unsubscribeNet = NetInfo.addEventListener((state) => {
@@ -218,14 +241,19 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
         }
       }
       let stored: NewItem = item;
-      if (item.kind === "upload") {
-        // Photo picker files live in a cache the OS may clear; keep our own copy until sent.
-        const source = new File(item.fileUri);
-        const target = new File(outboxDir(), `${id}-${item.fileName}`);
-        await source.copy(target);
-        stored = { ...item, fileUri: target.uri };
+      copying.current.add(id);
+      try {
+        if (item.kind === "upload") {
+          // Photo picker files live in a cache the OS may clear; keep our own copy until sent.
+          const source = new File(item.fileUri);
+          const target = new File(outboxDir(), `${id}-${item.fileName}`);
+          await source.copy(target);
+          stored = { ...item, fileUri: target.uri };
+        }
+        await persist([...itemsRef.current, { ...stored, id, createdAt: new Date().toISOString(), ...meta }]);
+      } finally {
+        copying.current.delete(id);
       }
-      await persist([...itemsRef.current, { ...stored, id, createdAt: new Date().toISOString(), ...meta }]);
       scheduleRetry();
       return { status: "queued" };
     },
