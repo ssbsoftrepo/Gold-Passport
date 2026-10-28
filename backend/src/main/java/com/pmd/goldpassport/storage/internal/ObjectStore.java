@@ -9,4 +9,7 @@ public interface ObjectStore {
     void put(String key, Path source, String contentType, long sizeBytes);
 
     InputStream get(String key);
+
+    /** Removes a blob; used only for uploads whose metadata was never committed. */
+    void delete(String key);
 }

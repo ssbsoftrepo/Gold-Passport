@@ -28,6 +28,7 @@ import com.pmd.goldpassport.shared.NotFoundException;
 import com.pmd.goldpassport.shared.Role;
 import com.pmd.goldpassport.shared.Validators;
 import com.pmd.goldpassport.storage.FileStorage;
+import com.pmd.goldpassport.storage.StagedFile;
 import com.pmd.goldpassport.storage.StoredFileInfo;
 
 @Service
@@ -68,19 +69,25 @@ public class LotService implements LotCustody {
         return lot;
     }
 
-    @Transactional
+    /** Not {@code @Transactional}: the photo is uploaded first, then the lot is changed in a short transaction. */
     public LotEvidence addPhoto(CurrentUser me, UUID lotId, MultipartFile photo, double latitude, double longitude,
             Double accuracyMeters, Instant capturedAt) {
-        Lot lot = ownLot(me, lotId);
-        Instant now = Instant.now(clock);
-        if (capturedAt != null && capturedAt.isAfter(now.plus(props.maxClockSkew()))) {
+        if (capturedAt != null && capturedAt.isAfter(Instant.now(clock).plus(props.maxClockSkew()))) {
             throw new BadRequestException("CAPTURED_IN_FUTURE", "capturedAt is in the future; check the device clock");
         }
         GeoPoint point = new GeoPoint(latitude, longitude);
-        StoredFileInfo stored = files.store(photo, FILE_CONTEXT, lot.getId(), me.userId());
-        if (!stored.contentType().startsWith("image/")) {
+        return files.withUpload(photo, FILE_CONTEXT, me.userId(),
+                staged -> addPhoto(me, lotId, staged, point, latitude, longitude, accuracyMeters, capturedAt));
+    }
+
+    private LotEvidence addPhoto(CurrentUser me, UUID lotId, StagedFile staged, GeoPoint point, double latitude,
+            double longitude, Double accuracyMeters, Instant capturedAt) {
+        if (!staged.contentType().startsWith("image/")) {
             throw new BadRequestException("PHOTO_REQUIRED", "Extraction evidence must be a photo");
         }
+        Lot lot = ownLot(me, lotId);
+        Instant now = Instant.now(clock);
+        StoredFileInfo stored = files.record(staged, lot.getId());
         LotEvidence evidence = lot.addEvidence(
                 LotEvidence.of(stored.id(), stored.sha256(), point, accuracyMeters, capturedAt, now), now);
         Map<String, Object> details = new HashMap<>();
@@ -106,13 +113,20 @@ public class LotService implements LotCustody {
         return lot;
     }
 
-    @Transactional
+    /** Not {@code @Transactional}: the report is uploaded first, then the lot is changed in a short transaction. */
     public Lot declareMinerLab(CurrentUser me, UUID lotId, MultipartFile report, BigDecimal purityPct,
             BigDecimal weightGrams, String labName) {
-        Lot lot = ownLot(me, lotId);
         validateAssay(purityPct, weightGrams, labName);
-        Instant now = Instant.now(clock);
-        StoredFileInfo stored = files.store(report, FILE_CONTEXT, lot.getId(), me.userId());
+        return files.withUpload(report, FILE_CONTEXT, me.userId(), staged -> {
+            Lot lot = ownLot(me, lotId);
+            Instant now = Instant.now(clock);
+            StoredFileInfo stored = files.record(staged, lot.getId());
+            return declareMinerLab(me, lot, stored, purityPct, weightGrams, labName, now);
+        });
+    }
+
+    private Lot declareMinerLab(CurrentUser me, Lot lot, StoredFileInfo stored, BigDecimal purityPct,
+            BigDecimal weightGrams, String labName, Instant now) {
         lot.declareMinerLab(labName.trim(), purityPct, weightGrams, stored.id(), now);
         publish(LotEvent.Kind.MINER_LAB_DECLARED, lot, me, Map.of(
                 "labName", labName.trim(),

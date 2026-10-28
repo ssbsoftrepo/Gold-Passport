@@ -5,6 +5,7 @@ import java.nio.file.Path;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
@@ -44,5 +45,14 @@ class S3ObjectStore implements ObjectStore {
     @Override
     public InputStream get(String key) {
         return s3.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build());
+    }
+
+    /**
+     * With versioning this adds a delete marker; under Object Lock the locked version stays (billed)
+     * until its retention ends and a lifecycle rule expires it.
+     */
+    @Override
+    public void delete(String key) {
+        s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
     }
 }

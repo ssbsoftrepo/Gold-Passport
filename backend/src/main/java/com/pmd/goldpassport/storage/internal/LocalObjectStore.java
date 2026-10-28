@@ -36,6 +36,15 @@ class LocalObjectStore implements ObjectStore {
         }
     }
 
+    @Override
+    public void delete(String key) {
+        try {
+            Files.deleteIfExists(resolve(key));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not delete " + key, e);
+        }
+    }
+
     private Path resolve(String key) {
         Path p = root.resolve(key).normalize();
         if (!p.startsWith(root)) {

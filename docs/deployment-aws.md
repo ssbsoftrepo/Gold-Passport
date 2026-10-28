@@ -50,6 +50,9 @@ Notes:
 | `SPRING_PROFILES_ACTIVE` | Never `local` outside laptops (it seeds demo users and a fixed OTP) | `prod` |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | RDS connection (password from Secrets Manager) | `jdbc:postgresql://pmd.xxxx.sa-east-1.rds.amazonaws.com:5432/goldpassport` |
 | `DB_POOL_SIZE` | Hikari pool per task | `10` |
+| `DB_CONNECTION_TIMEOUT_MS` | How long a request waits for a pooled connection before failing (keep below the mobile app's 20 s timeout) | `10000` |
+| `DB_LEAK_DETECTION_MS` | Log a warning with a stack trace when a connection is held longer than this | `30000` |
+| `ASYNC_CONCURRENCY_LIMIT` | Most async event listeners (notifications, KYC) running at once; keep well below `DB_POOL_SIZE` | `4` |
 | `PMD_AUTH_MODE` | `cognito` in AWS | `cognito` |
 | `PMD_COGNITO_ISSUER_URI` | User pool issuer | `https://cognito-idp.sa-east-1.amazonaws.com/sa-east-1_AbCdEf` |
 | `PMD_COGNITO_REGION`, `PMD_COGNITO_CLIENT_ID` | Returned to the apps by `/auth/config` | `sa-east-1`, `4h3...` |
@@ -62,7 +65,10 @@ Notes:
 
 AWS credentials come from the ECS task role (no keys in configuration). Task role permissions:
 
-- `s3:PutObject`, `s3:GetObject` on the evidence bucket; `kms:GenerateDataKey`, `kms:Decrypt` on its key
+- `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the evidence bucket; `kms:GenerateDataKey`,
+  `kms:Decrypt` on its key. `DeleteObject` is only used for an upload whose request failed before its
+  metadata was committed (see "S3 evidence bucket"); without it such uploads are left in the bucket
+  and a warning is logged.
 - `rekognition:CompareFaces`, `rekognition:DetectText`
 - `sns:CreatePlatformEndpoint`, `sns:Publish` on the platform applications
 
@@ -90,6 +96,11 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
   (evidence must not be deletable). Object Lock must be enabled when the bucket is created.
 - Default encryption SSE-KMS with a customer-managed key (`PMD_S3_KMS_KEY_ID`).
 - Lifecycle rule to move objects older than 90 days to S3 Glacier Instant Retrieval.
+- Uploads are stored before the database change they belong to is committed. When that change fails,
+  the API deletes the object again. With versioning this only adds a delete marker, and under Object
+  Lock the locked version remains until its retention ends, so add a lifecycle rule that expires
+  noncurrent versions (they can only be removed once their retention has passed). Committed evidence
+  is never deleted by the API.
 - S3 gateway VPC endpoint so traffic does not cross the NAT gateway.
 
 ## Database

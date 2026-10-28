@@ -27,6 +27,7 @@ import com.pmd.goldpassport.shared.NotFoundException;
 import com.pmd.goldpassport.shared.Role;
 import com.pmd.goldpassport.shared.Validators;
 import com.pmd.goldpassport.storage.FileStorage;
+import com.pmd.goldpassport.storage.StagedFile;
 import com.pmd.goldpassport.storage.StoredFileInfo;
 
 /**
@@ -55,10 +56,17 @@ public class LabService implements LabQueries {
         this.clock = clock;
     }
 
-    @Transactional
+    /** Not {@code @Transactional}: the report is uploaded first, then the result is saved in a short transaction. */
     public LabResult record(CurrentUser me, UUID lotId, MultipartFile report, BigDecimal purityPct,
             BigDecimal weightGrams, String labName) {
         me.requireRole(Role.COLLECTOR);
+        validate(purityPct, weightGrams, labName);
+        return files.withUpload(report, LotCustody.FILE_CONTEXT, me.userId(),
+                staged -> record(me, lotId, staged, purityPct, weightGrams, labName));
+    }
+
+    private LabResult record(CurrentUser me, UUID lotId, StagedFile staged, BigDecimal purityPct,
+            BigDecimal weightGrams, String labName) {
         LotView lot = lots.get(lotId);
         if (!me.userId().equals(lot.collectorUserId())) {
             throw new ForbiddenException("NOT_A_PARTICIPANT", "Only the receiving Collector/Plant can record the lab check");
@@ -69,9 +77,8 @@ public class LabService implements LabQueries {
         if (results.existsByLotId(lotId)) {
             throw new InvalidStateException("LAB_RESULT_EXISTS", "A laboratory result is already recorded for this lot");
         }
-        validate(purityPct, weightGrams, labName);
         Instant now = Instant.now(clock);
-        StoredFileInfo stored = files.store(report, LotCustody.FILE_CONTEXT, lotId, me.userId());
+        StoredFileInfo stored = files.record(staged, lotId);
         AssayComparison cmp = AssayComparison.compare(lot.declaredPurityPct(), lot.declaredWeightGrams(), purityPct,
                 weightGrams, props.purityTolerancePct(), props.weightTolerancePct());
         LabResult r = results.save(LabResult.record(lotId, lot.code(), lot.minerUserId(), me.userId(), labName.trim(),

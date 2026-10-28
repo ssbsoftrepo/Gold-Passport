@@ -115,10 +115,15 @@ Two mechanisms, chosen deliberately:
 2. **Domain events** for side effects. Every event implements `shared.DomainEvent`.
    - `audit.LedgerService` listens **synchronously** (`@EventListener`), in the same transaction:
      no business change without its ledger entry.
-   - `notifications` and the onboarding KYC check use `@ApplicationModuleListener`
-     (asynchronous, after commit, own transaction). Spring Modulith's event publication registry
-     (table `event_publication`) stores each event until its listener completes and republishes
-     unfinished ones on restart, so a crash does not lose notifications.
+   - `notifications` and the onboarding KYC check use `@Async @TransactionalEventListener`
+     (asynchronous, after commit) and open their own short transactions around the AWS calls they
+     make (see below). Spring Modulith's event publication registry (table `event_publication`)
+     stores each event until its listener completes and republishes unfinished ones on restart, so a
+     crash does not lose notifications. At most `spring.task.execution.simple.concurrency-limit`
+     listeners run at once.
+   - Lock order: the ledger takes a per-chain advisory lock. `LedgerService.record` flushes the
+     transaction's pending changes before taking it, so row locks always come first and the chain
+     lock last, whichever code path changed the rows.
 
 ### Request lifecycle
 
@@ -132,6 +137,28 @@ Two mechanisms, chosen deliberately:
    (`ParticipantDirectory.requireApproved`), participation (e.g. only this lot's miner).
 6. Errors become RFC 7807 problem details with a stable `code` (`GlobalExceptionHandler`), which the
    apps translate.
+
+### Database connections and external calls
+
+A transaction holds one pooled connection (`DB_POOL_SIZE`, default 10) from start to commit, so
+**S3, SNS and Rekognition are never called inside a transaction** (`ConnectionUseTest` checks it):
+
+- Uploads go through `FileStorage.withUpload`: the bytes are hashed and stored first, then the
+  caller's work runs in a short transaction and records the file with `FileStorage.record`. If that
+  work or its commit fails, the stored bytes are deleted again, unless the metadata row exists after
+  all. Services that take uploads (`LotService.addPhoto` / `declareMinerLab`, `LabService.record`,
+  `OnboardingService.uploadDocument`) are therefore not `@Transactional` themselves.
+- Downloads (`FileStorage.open`, `readAllBytes`) look up metadata in a short transaction and read the
+  object outside it.
+- `NotificationService.notify` saves inbox entries in a transaction, then sends pushes;
+  `registerDevice` registers with SNS before saving the device.
+- `KycService` reads the application, runs the checks, then writes the result, each database step
+  its own transaction. `OnboardingApplication` is `@DynamicUpdate`, so a reviewer's approval only
+  writes the columns it changed and cannot overwrite a KYC result written meanwhile.
+
+Hikari fails a request that waits more than `DB_CONNECTION_TIMEOUT_MS` (10 s, below the mobile app's
+20 s timeout) for a connection and logs a leak warning for any connection held longer than
+`DB_LEAK_DETECTION_MS` (30 s).
 
 ### Adapters (ports) and configuration
 
