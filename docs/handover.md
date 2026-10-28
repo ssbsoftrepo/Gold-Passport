@@ -86,6 +86,8 @@ Ordered by priority.
 - Is the plant's lab always the reference for payment (today), or an average / third-party lab?
 - Should the minimum number of extraction photos per lot be higher than 1
   (`pmd.lots.min-photos`)?
+- Is 1600 px on the longest side (2048 px for ID documents) enough detail for evidence photos?
+  (`PHOTO_MAX_EDGE` in `apps/mobile/src/lib/capture.ts`; larger means slower uploads on weak signal.)
 - Is a lot always transported whole, or can it be split across transports?
 - What is the location-mismatch threshold that should alert PMD (today 5 km)?
 

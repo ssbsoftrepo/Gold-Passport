@@ -191,4 +191,8 @@ Aggregates use optimistic locking (`version` column); a concurrent edit returns
 - Session token in the device keystore (`expo-secure-store`); the last user profile is cached so
   the app opens without signal.
 - Camera-only evidence capture (`src/lib/capture.ts`), GPS via `expo-location` (works offline).
+  Photos are scaled down on the phone before they are uploaded or queued (longest side 1600 px,
+  2048 px for ID documents, JPEG quality 0.7; `expo-image-manipulator`), typically a few hundred KB
+  instead of several MB, which matters on a weak signal. The server hashes the file it receives, so
+  the ledger records the uploaded version.
 - Push token registration (`src/lib/push.ts`) for SNS; the inbox is always the source of truth.
