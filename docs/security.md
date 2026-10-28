@@ -79,10 +79,41 @@ documents, GPS coordinates, payment amounts and references.
   periods, and handle access/deletion requests. Evidence under Object Lock cannot be deleted during
   its retention period, so agree that period with legal.
 
+## Dependency vulnerabilities
+
+- **Scan:** `.github/workflows/dependency-scan.yml` checks the web and mobile lockfiles and the
+  backend's Maven dependencies (including transitive ones) against the
+  [OSV database](https://osv.dev), which includes GitHub's security advisories. It runs on every
+  pull request, on `main` and every Monday, because new advisories appear without any code change.
+  A known vulnerability fails the check. Locally, `npm audit` in `apps/web` or `apps/mobile` shows
+  the same npm findings.
+- **Updates:** Dependabot (`.github/dependabot.yml`) opens weekly pull requests with minor and
+  patch updates, one per app, plus GitHub Actions and the Docker base images. Major upgrades (an
+  Expo SDK, Spring Boot, Next.js) are planned work and are left out. In the repository settings,
+  under *Code security*, also turn on **Dependabot alerts** and **Dependabot security updates**.
+
+When the scan fails:
+
+1. Upgrade to a fixed version: `npm update <package>` or `npm audit fix` in the app (never
+   `--force`, which can jump major versions), or the version in `backend/pom.xml`. For Expo
+   packages, keep to the versions of the current SDK.
+2. If no fixed version can be used yet, judge whether the vulnerable code is reachable (in the app
+   shipped to phones or in the server, or only in build tools on our own files) and record the
+   decision in `osv-scanner.toml`: the advisory id, the reason and an expiry date at most 90 days
+   ahead. When it expires the scan fails again and the decision is reviewed.
+
+Accepted today (both only in Expo's build tools, not in the app that ships to phones, and revisited
+with the next Expo SDK):
+
+| Advisory | Package | Why it stays |
+| --- | --- | --- |
+| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high) | zod 3.25, in `@expo/cli` | Fixed only in zod 4, which the Expo command-line tool does not support; it only validates our own project files |
+| [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low) | deepmerge 4.3.1, in `@expo/config` | No fixed version published; it only merges our own app config |
+
 ## Hardening backlog
 
 - Rate limiting at the edge (WAF) for auth and public endpoints.
 - Audit log of admin reads (who viewed which KYC document).
 - Malware scanning of uploads (e.g. GuardDuty Malware Protection for S3).
 - Content Security Policy headers on the web app.
-- Dependency scanning (Dependabot / `npm audit` / OWASP dependency-check) in CI.
+- Scanning of the built container images (e.g. Amazon ECR enhanced scanning).

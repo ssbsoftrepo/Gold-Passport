@@ -1,0 +1,55 @@
+# Weekly update pull requests (docs/security.md#dependency-vulnerabilities). Minor and patch
+# updates are grouped into one pull request per app; major upgrades are deliberate projects
+# (an Expo SDK, Spring Boot, Next.js) and are left out.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      web:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /apps/mobile
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      mobile:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # Expo pins these to the SDK; a minor bump here is an SDK upgrade (npx expo install --fix).
+      - dependency-name: "react"
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "react-native"
+        update-types: ["version-update:semver-minor"]
+
+  - package-ecosystem: maven
+    directory: /backend
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      backend:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+
+  - package-ecosystem: docker
+    directories: [/backend, /apps/web]
+    schedule: { interval: weekly, day: monday }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
