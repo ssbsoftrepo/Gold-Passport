@@ -516,6 +516,7 @@ paths:
       summary: Upload an extraction photo; GPS and capture time are recorded as evidence
       parameters:
         - $ref: '#/components/parameters/lotId'
+        - $ref: '#/components/parameters/idempotencyKey'
       requestBody:
         required: true
         content:
@@ -736,6 +737,7 @@ paths:
       summary: Transporter starts travelling to the Miner
       parameters:
         - $ref: '#/components/parameters/transportId'
+        - $ref: '#/components/parameters/idempotencyKey'
       requestBody:
         required: true
         content:
@@ -751,6 +753,7 @@ paths:
       summary: Transporter arrives at the Miner location (distance to lot evidence is checked)
       parameters:
         - $ref: '#/components/parameters/transportId'
+        - $ref: '#/components/parameters/idempotencyKey'
       requestBody:
         required: true
         content:
@@ -776,6 +779,7 @@ paths:
       summary: Miner assigns current mineral ownership to the Transporter
       parameters:
         - $ref: '#/components/parameters/transportId'
+        - $ref: '#/components/parameters/idempotencyKey'
       responses:
         '200': { $ref: '#/components/responses/TransportOk' }
         '409': { $ref: '#/components/responses/Problem' }
@@ -786,6 +790,7 @@ paths:
       summary: Transporter picks up the mineral; custody moves to the Transporter
       parameters:
         - $ref: '#/components/parameters/transportId'
+        - $ref: '#/components/parameters/idempotencyKey'
       requestBody:
         required: true
         content:
@@ -801,6 +806,7 @@ paths:
       summary: Optional GPS ping while in transit
       parameters:
         - $ref: '#/components/parameters/transportId'
+        - $ref: '#/components/parameters/idempotencyKey'
       requestBody:
         required: true
         content:
@@ -816,6 +822,7 @@ paths:
       summary: Transporter delivers at the Collector/Plant
       parameters:
         - $ref: '#/components/parameters/transportId'
+        - $ref: '#/components/parameters/idempotencyKey'
       requestBody:
         required: true
         content:
@@ -1135,6 +1142,18 @@ components:
     lotId: { name: lotId, in: path, required: true, schema: { type: string, format: uuid } }
     transportId: { name: transportId, in: path, required: true, schema: { type: string, format: uuid } }
     fileId: { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+        A repeat with the same key by the same user gets the first successful response again, with
+        the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+        remembered. While the first attempt is still running a repeat gets 409
+        `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+        Keys are kept 30 days.
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,128}$' }
 
   responses:
     Problem:

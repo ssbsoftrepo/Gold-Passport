@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, call, setAccessToken, type Schemas } from "./api";
+import { clearCache } from "./cache";
 import { registerForPush } from "./push";
 
 /** Access token in the device keystore (SecureStore) + the current user and onboarding state. */
@@ -40,6 +41,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => undefined);
     await AsyncStorage.removeItem(CACHE_KEY).catch(() => undefined);
+    await clearCache();
     setAccessToken(null);
     setUser(null);
     setOnboarding(null);
@@ -64,23 +66,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         setAccessToken(token);
+        // Open straight away from the cached profile: on a weak signal the refresh below can take
+        // a long time, and at the mine there may be none. The refresh updates it when it arrives.
+        const cached = await AsyncStorage.getItem(CACHE_KEY).catch(() => null);
+        if (cached) {
+          const { user: u, onboarding: o } = JSON.parse(cached) as { user: User; onboarding: Application | null };
+          setUser(u);
+          setOnboarding(o);
+          setStatus("authenticated");
+        }
         try {
           await refresh();
           void registerForPush();
         } catch (e) {
-          // Offline at startup: keep the token, show the app; 401 means the token expired.
+          // Offline at startup: keep the token and the cached profile; 401 means the token expired.
           if (e && typeof e === "object" && "status" in e && (e as { status: number }).status === 401) {
             await signOut();
-          } else {
-            const cached = await AsyncStorage.getItem(CACHE_KEY);
-            if (cached) {
-              const { user: u, onboarding: o } = JSON.parse(cached) as { user: User; onboarding: Application | null };
-              setUser(u);
-              setOnboarding(o);
-              setStatus("authenticated");
-            } else {
-              setStatus("anonymous");
-            }
+          } else if (!cached) {
+            setStatus("anonymous");
           }
         }
       })

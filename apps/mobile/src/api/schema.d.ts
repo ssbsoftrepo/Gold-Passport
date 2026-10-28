@@ -1625,6 +1625,15 @@ export interface components {
         lotId: string;
         transportId: string;
         fileId: string;
+        /**
+         * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+         *     A repeat with the same key by the same user gets the first successful response again, with
+         *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+         *     remembered. While the first attempt is still running a repeat gets 409
+         *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+         *     Keys are kept 30 days.
+         */
+        idempotencyKey: string;
     };
     requestBodies: never;
     headers: never;
@@ -2345,7 +2354,17 @@ export interface operations {
     uploadLotPhoto: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 lotId: components["parameters"]["lotId"];
             };
@@ -2660,7 +2679,17 @@ export interface operations {
     departTransport: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 transportId: components["parameters"]["transportId"];
             };
@@ -2679,7 +2708,17 @@ export interface operations {
     arriveAtMiner: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 transportId: components["parameters"]["transportId"];
             };
@@ -2713,7 +2752,17 @@ export interface operations {
     confirmHandover: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 transportId: components["parameters"]["transportId"];
             };
@@ -2728,7 +2777,17 @@ export interface operations {
     pickupMineral: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 transportId: components["parameters"]["transportId"];
             };
@@ -2747,7 +2806,17 @@ export interface operations {
     recordTransportLocation: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 transportId: components["parameters"]["transportId"];
             };
@@ -2766,7 +2835,17 @@ export interface operations {
     arriveAtCollector: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Makes the request safe to repeat (the mobile offline outbox sends one per queued action).
+                 *     A repeat with the same key by the same user gets the first successful response again, with
+                 *     the header `Idempotent-Replayed: true`, instead of being applied twice. Failed attempts are not
+                 *     remembered. While the first attempt is still running a repeat gets 409
+                 *     `IDEMPOTENCY_KEY_IN_USE`; a key reused for another operation gets 422 `IDEMPOTENCY_KEY_REUSED`.
+                 *     Keys are kept 30 days.
+                 */
+                "Idempotency-Key"?: components["parameters"]["idempotencyKey"];
+            };
             path: {
                 transportId: components["parameters"]["transportId"];
             };

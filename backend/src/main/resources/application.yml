@@ -115,6 +115,11 @@ pmd:
   transport:
     location-mismatch-km: 5
     max-clock-skew: 5m
+  idempotency:
+    # A retry may take over an attempt that has been running this long (server crashed mid-request).
+    in-progress-timeout: 10m
+    # Must outlast how long a phone can stay offline with an unanswered request in its outbox.
+    retention: 30d
   lab:
     purity-tolerance-pct: 0.5
     weight-tolerance-pct: 1.0
