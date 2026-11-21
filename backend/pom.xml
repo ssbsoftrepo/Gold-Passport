@@ -22,6 +22,8 @@
         <spring-modulith.version>1.4.1</spring-modulith.version>
         <springdoc.version>2.8.9</springdoc.version>
         <aws-sdk.version>2.31.50</aws-sdk.version>
+        <!-- 1.21.3 talks to Docker with API 1.32, which Docker Engine 29 (GitHub's runners) refuses -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencyManagement>
