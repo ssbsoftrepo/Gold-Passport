@@ -6,6 +6,7 @@ import { ErrorNotice } from "@/components/ui";
 import { api, call, type Schemas } from "@/lib/api";
 import { completeCognitoLogin, startCognitoLogin, type CognitoChallenge } from "@/lib/cognito";
 import { useAction } from "@/lib/hooks";
+import { isEnabled } from "@/lib/features";
 import { useI18n } from "@/lib/i18n";
 import { homeFor, useSession } from "@/lib/session";
 
@@ -84,14 +85,16 @@ export default function LoginPage() {
           <p className="big">{t("login.art")}</p>
           <p>{t("login.artSub")}</p>
         </div>
-        <button
-          type="button"
-          className="link-button"
-          style={{ color: "var(--slate-text)", alignSelf: "flex-start" }}
-          onClick={() => setLocale(locale === "es" ? "en" : "es")}
-        >
-          {t("common.language")}
-        </button>
+        {isEnabled("english") && (
+          <button
+            type="button"
+            className="link-button"
+            style={{ color: "var(--slate-text)", alignSelf: "flex-start" }}
+            onClick={() => setLocale(locale === "es" ? "en" : "es")}
+          >
+            {t("common.language")}
+          </button>
+        )}
       </section>
 
       <section className="login-form">

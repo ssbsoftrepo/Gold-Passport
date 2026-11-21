@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { Share, View } from "react-native";
 import { api, call } from "@/lib/api";
+import { isEnabled } from "@/lib/features";
 import { formatDateTime } from "@/lib/format";
 import { fieldReport } from "@/lib/fieldLog";
 import { useAction, useScreenData } from "@/lib/hooks";
@@ -60,36 +61,42 @@ export function ProfileScreen() {
         <Row label={t("login.phone")} value={user?.phone ?? "—"} />
         <Row label={t("profile.role")} value={user?.role ? t(`role.${user.role}`) : "—"} />
       </Section>
-      <Section>
-        <Choice label={t("profile.language")} value={locale}
-          options={[{ value: "es", label: "Español" }, { value: "en", label: "English" }]} onChange={changeLocale} />
-      </Section>
-      <Section title={t("profile.outbox")}>
-        {needsSignIn && <Notice kind="bad">{t("profile.signInToSend")}</Notice>}
-        {waiting && !needsSignIn && !syncing && <Muted>{t("profile.waitingForSignal")}</Muted>}
-        {items.length === 0 ? (
-          <Muted>{t("profile.outboxEmpty")}</Muted>
-        ) : (
-          items.map((i) => (
-            <View key={i.id} style={{ gap: space.xs }}>
-              <Body>{i.label}</Body>
-              <Muted>{formatDateTime(i.createdAt, locale)}</Muted>
-              {i.error && (
-                <>
-                  <Notice kind="bad">{t("profile.failed", { error: i.error })}</Notice>
-                  <Button label={t("profile.discard")} variant="danger" onPress={() => discard(i.id)} />
-                </>
-              )}
-            </View>
-          ))
-        )}
-        {items.length > 0 && <Button label={t("profile.syncNow")} onPress={syncNow} busy={syncing} />}
-      </Section>
-      <Section title={t("profile.fieldReport")}>
-        <Muted>{t("profile.fieldReportHelp")}</Muted>
-        <ErrorNotice error={report.error} />
-        <Button label={t("profile.sendFieldReport")} variant="quiet" onPress={sendFieldReport} busy={report.pending} />
-      </Section>
+      {isEnabled("english") && (
+        <Section>
+          <Choice label={t("profile.language")} value={locale}
+            options={[{ value: "es", label: "Español" }, { value: "en", label: "English" }]} onChange={changeLocale} />
+        </Section>
+      )}
+      {(isEnabled("batches") || isEnabled("transport")) && (
+        <Section title={t("profile.outbox")}>
+          {needsSignIn && <Notice kind="bad">{t("profile.signInToSend")}</Notice>}
+          {waiting && !needsSignIn && !syncing && <Muted>{t("profile.waitingForSignal")}</Muted>}
+          {items.length === 0 ? (
+            <Muted>{t("profile.outboxEmpty")}</Muted>
+          ) : (
+            items.map((i) => (
+              <View key={i.id} style={{ gap: space.xs }}>
+                <Body>{i.label}</Body>
+                <Muted>{formatDateTime(i.createdAt, locale)}</Muted>
+                {i.error && (
+                  <>
+                    <Notice kind="bad">{t("profile.failed", { error: i.error })}</Notice>
+                    <Button label={t("profile.discard")} variant="danger" onPress={() => discard(i.id)} />
+                  </>
+                )}
+              </View>
+            ))
+          )}
+          {items.length > 0 && <Button label={t("profile.syncNow")} onPress={syncNow} busy={syncing} />}
+        </Section>
+      )}
+      {isEnabled("fieldReport") && (
+        <Section title={t("profile.fieldReport")}>
+          <Muted>{t("profile.fieldReportHelp")}</Muted>
+          <ErrorNotice error={report.error} />
+          <Button label={t("profile.sendFieldReport")} variant="quiet" onPress={sendFieldReport} busy={report.pending} />
+        </Section>
+      )}
       <Button label={t("profile.signOut")} variant="quiet" onPress={() => signOut().then(() => router.replace("/login"))} />
     </Screen>
   );

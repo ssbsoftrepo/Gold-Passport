@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
@@ -13,7 +14,9 @@ import { useOutbox } from "@/lib/outbox";
 import { space, type } from "@/lib/theme";
 
 /** Miner's lote: extraction photos with GPS (works offline), close, then declare the lab assay. */
-export default function LotDetail() {
+export default gated("batches", LotDetail);
+
+function LotDetail() {
   const { lotId } = useLocalSearchParams<{ lotId: string }>();
   const { t, locale } = useI18n();
   const outbox = useOutbox();

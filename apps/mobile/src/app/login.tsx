@@ -7,6 +7,7 @@ import { api, call, type Schemas } from "@/lib/api";
 import { completeCognitoLogin, startCognitoLogin, type CognitoChallenge } from "@/lib/cognito";
 import { useAction } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
+import { isEnabled } from "@/lib/features";
 import { useSession } from "@/lib/session";
 import { colors, space, type } from "@/lib/theme";
 
@@ -72,9 +73,11 @@ export default function Login() {
             <View style={s.mark} />
             <Text style={s.brand}>PMD</Text>
           </View>
-          <Pressable onPress={() => setLocale(locale === "es" ? "en" : "es")} accessibilityRole="button">
-            <Text style={s.lang}>{locale === "es" ? "English" : "Español"}</Text>
-          </Pressable>
+          {isEnabled("english") && (
+            <Pressable onPress={() => setLocale(locale === "es" ? "en" : "es")} accessibilityRole="button">
+              <Text style={s.lang}>{locale === "es" ? "English" : "Español"}</Text>
+            </Pressable>
+          )}
         </View>
         <Text style={s.art}>{t("login.art")}</Text>
         <View style={s.panel}>

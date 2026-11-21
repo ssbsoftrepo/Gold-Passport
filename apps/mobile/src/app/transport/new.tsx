@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Button, Choice, ErrorNotice, Field, Notice, Screen, Section } from "@/components/ui";
@@ -6,7 +7,9 @@ import { useAction, useScreenData } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 
 /** New transport request between a Miner and a Collector/Plant the transporter is approved with. */
-export default function NewTransport() {
+export default gated("transport", NewTransport);
+
+function NewTransport() {
   const { t } = useI18n();
   const action = useAction();
   const { data, error, staleSince } = useScreenData(() => call(api.GET("/api/v1/relationships")), "relationships");

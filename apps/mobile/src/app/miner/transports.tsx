@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { useState } from "react";
 import { View } from "react-native";
 import { Body, Button, Choice, ErrorNotice, Field, ListItem, Muted, Notice, Screen, Stamp, StatusTag } from "@/components/ui";
@@ -9,7 +10,9 @@ import { useOutbox } from "@/lib/outbox";
 import { space } from "@/lib/theme";
 
 /** Transport requests addressed to the miner: confirm with a lot, decline, hand over at the mine. */
-export default function MinerTransports() {
+export default gated("transport", MinerTransports);
+
+function MinerTransports() {
   const { t } = useI18n();
   const { data, error, loading, reload, staleSince } = useScreenData(async () => {
     const [transports, ready] = await Promise.all([

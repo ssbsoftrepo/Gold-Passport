@@ -23,6 +23,7 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://api.example.pe",
         "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "production",
+        "EXPO_PUBLIC_RELEASE_PHASE": "1",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
