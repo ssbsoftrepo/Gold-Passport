@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { router } from "expo-router";
 import { View } from "react-native";
 import { Body, Button, ErrorNotice, ListItem, Muted, Notice, Screen, StatusTag } from "@/components/ui";
@@ -7,7 +8,9 @@ import { useI18n } from "@/lib/i18n";
 import { space } from "@/lib/theme";
 
 /** Relationships the transporter registered (validated by PMD) or was added to by a plant. */
-export default function Partners() {
+export default gated("transport", Partners);
+
+function Partners() {
   const { t } = useI18n();
   const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/relationships")), "relationships");
   return (

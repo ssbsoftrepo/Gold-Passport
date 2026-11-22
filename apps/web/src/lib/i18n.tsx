@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { isEnabled } from "./features";
 
 /**
  * Tiny i18n: Spanish (default, the language of field users and PMD staff) and English.
@@ -327,6 +328,9 @@ const en = {
   "passport.generated": "Checked {date}",
 
   "errors.generic": "Something went wrong. Try again.",
+  "soon.title": "Your account is approved",
+  "passport.unavailable": "The public Gold Passport is not available yet.",
+  "soon.body": "Soon you will manage trips, received batches and payments here. We will let you know in Notifications when it is available.",
   "errors.network": "Cannot reach the PMD server. Check your connection.",
   "errors.OTP_INVALID": "That code is not correct.",
   "errors.OTP_EXPIRED": "The code expired. Request a new one.",
@@ -693,6 +697,9 @@ const es: Partial<Record<MessageKey, string>> = {
   "passport.generated": "Verificado {date}",
 
   "errors.generic": "Algo salió mal. Inténtalo de nuevo.",
+  "soon.title": "Tu cuenta está aprobada",
+  "passport.unavailable": "El Pasaporte del Oro público aún no está disponible.",
+  "soon.body": "Pronto podrás gestionar aquí los transportes, los lotes recibidos y los pagos. Te avisaremos en Notificaciones cuando esté disponible.",
   "errors.network": "No se puede conectar con el servidor de PMD. Revisa tu conexión.",
   "errors.OTP_INVALID": "El código no es correcto.",
   "errors.OTP_EXPIRED": "El código venció. Solicita uno nuevo.",
@@ -748,6 +755,9 @@ type Params = Record<string, string | number | null | undefined>;
 
 const dictionaries: Record<Locale, Partial<Record<MessageKey, string>>> = { en, es };
 
+/** Both dictionaries, for checks that every key and placeholder is translated. */
+export const messages = { en, es };
+
 export function translate(locale: Locale, key: string, params?: Params): string {
   const template = dictionaries[locale][key as MessageKey] ?? en[key as MessageKey] ?? key;
   if (!params) return template;
@@ -773,7 +783,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       const saved = window.localStorage.getItem(STORAGE_KEY);
       // Browser storage is only readable after hydration; reading it here avoids a hydration mismatch.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved === "en" || saved === "es") setLocaleState(saved);
+      if (saved === "es" || (saved === "en" && isEnabled("english"))) setLocaleState(saved);
     } catch {
       // storage unavailable: keep the default
     }
