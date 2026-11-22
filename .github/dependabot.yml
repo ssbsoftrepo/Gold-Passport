@@ -24,13 +24,20 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      # Expo pins these to the SDK; a minor bump here is an SDK upgrade (npx expo install --fix).
+      # Expo pins these to the SDK (expo/bundledNativeModules.json). Bumping them one by one
+      # leaves the app out of step with the SDK; update them together with
+      # `npx expo install expo@~<version> --fix` instead (docs/security.md).
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "eslint-config-expo"
       - dependency-name: "react"
-        update-types: ["version-update:semver-minor"]
       - dependency-name: "react-dom"
-        update-types: ["version-update:semver-minor"]
       - dependency-name: "react-native"
-        update-types: ["version-update:semver-minor"]
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@sentry/react-native"
 
   - package-ecosystem: maven
     directory: /backend
@@ -53,3 +60,7 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # The maven tag names the JDK (3.9-eclipse-temurin-21), which Dependabot treats as a suffix
+      # and would move to a non-LTS Java. JDK and Node.js upgrades are deliberate; change the
+      # Dockerfiles by hand.
+      - dependency-name: "maven"
