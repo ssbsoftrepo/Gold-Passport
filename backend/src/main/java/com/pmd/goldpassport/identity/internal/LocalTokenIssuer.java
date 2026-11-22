@@ -19,7 +19,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 
 /**
  * Issues HS256 access tokens in local auth mode. In Cognito mode this bean still exists but is
- * never used to issue tokens (the OTP endpoints answer 404).
+ * never used to issue tokens (the local PIN endpoints answer 404).
  */
 @Component
 public class LocalTokenIssuer {

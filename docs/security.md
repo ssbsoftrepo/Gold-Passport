@@ -4,8 +4,23 @@
 
 | Mode | How | Where |
 | --- | --- | --- |
-| `local` | Phone + 6-digit OTP. Codes are stored as SHA-256, expire in 5 minutes, allow 5 attempts, and are rate-limited per phone (5 per 15 minutes). The backend issues an HS256 JWT (12 h). | Laptops, CI, demos. The code is written to the log, never sent. |
-| `cognito` | Amazon Cognito passwordless SMS OTP. The apps send the Cognito ID token; the backend validates signature (JWKS), expiry and issuer. | AWS environments |
+| `local` | Phone number + 6-digit PIN (PMD staff: password of 10+ characters). Stored as BCrypt hashes (`identity.local_credentials`); 5 wrong tries in a row lock the account for 15 minutes; an unknown number takes as long to answer as a wrong PIN. The backend issues an HS256 JWT (12 h). | Laptops, CI, demos |
+| `cognito` | Amazon Cognito user pool, phone number + password (the PIN). The apps send the Cognito ID token; the backend validates signature (JWKS), expiry and issuer. Cognito throttles repeated wrong PINs. | AWS environments |
+
+**No SMS is ever sent** (decided with PMD to keep running costs at zero):
+
+- New accounts are confirmed without a code. The phone number is therefore *not* proven at sign-up:
+  PMD calls the applicant on that number during the onboarding review before approving.
+- PINs must be 6 digits, not all the same and not a run (`123456`, `987654`). PMD staff (`ADMIN`),
+  who approve people and see their documents, must use a password of at least 10 characters (enforced
+  by the backend in `local` mode and by the web app in Cognito mode, which cannot set a per-user
+  policy).
+- **Forgotten PIN**: PMD resets it from the web Users page (`POST /api/v1/admin/users/{id}/reset-pin`,
+  `ADMIN` only, never one's own). The backend creates a random temporary PIN (staff: 12 characters),
+  shows it once to the PMD staff member, who gives it to the person by phone after confirming who is
+  calling. It is valid for 7 days, must be replaced at the next sign-in, and the person is signed out
+  on every device at once (Cognito `AdminUserGlobalSignOut`). The temporary value is never logged.
+- Everyone can change their PIN (mobile: Profile → Cambiar PIN; web: My account).
 
 In both modes the **role comes from the platform database**, never from token claims, so PMD
 controls authorization independently of the identity provider. Suspended users
@@ -72,8 +87,8 @@ documents, GPS coordinates, payment amounts and references.
 - The directory of participants masks document numbers (`****1234`).
 - The public passport shows roles only (no names), approximate locations (2 decimals, about 1 km),
   and no prices.
-- Logs never contain tokens or file contents. In `local` mode they contain OTP codes, which is why
-  `local` must never run in a shared environment.
+- Logs never contain tokens, PINs or file contents. The `local` profile seeds demo accounts with a
+  known PIN, which is why it must never run in a shared environment.
 - Peru's Ley 29733 (personal data protection) applies: register the database with the national
   authority as required, publish a privacy notice and obtain consent in onboarding, define retention
   periods, and handle access/deletion requests. Evidence under Object Lock cannot be deleted during

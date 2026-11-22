@@ -14,8 +14,8 @@ flowchart LR
     ALB -->|everything else| WEB[Web<br/>ECS Fargate]
     API --> DB[(RDS PostgreSQL 16)]
     API --> S3[(S3 evidence<br/>Object Lock + KMS)]
-    API -. validates tokens .-> COG[Cognito<br/>SMS sign-in]
-    U -. SMS code .-> COG
+    API -. validates tokens .-> COG[Cognito<br/>phone + PIN, no SMS]
+    U -. phone + PIN .-> COG
 ```
 
 One CloudFormation stack per environment, `GoldPassport-staging` and `GoldPassport-production`:
@@ -27,7 +27,7 @@ One CloudFormation stack per environment, `GoldPassport-staging` and `GoldPasspo
 | Web containers | 1 × 0.25 vCPU / 0.5 GB | 2 × 0.5 vCPU / 1 GB |
 | Database | `db.t4g.micro`, single zone, 7-day backups | `db.t4g.small`, Multi-AZ, 35-day backups, deletion protection |
 | Evidence bucket | Object Lock (governance, 1 day) | Object Lock (governance, 10 years) |
-| Sign-in | Cognito, passwordless SMS codes | same |
+| Sign-in | Cognito (Lite plan), phone number + 6-digit PIN, PMD staff a 10+ character password; no SMS | same |
 | Release phase (web) | every feature | Phase 1 (`docs/releases.md`) |
 
 Only CloudFront is reachable from the internet. The load balancer, containers and database are
@@ -93,12 +93,14 @@ Optional variables (per environment):
 
 1. **Make the first PMD admin.** Open the stack's **Outputs** tab in CloudFormation, copy
    `MakeAdminCommand`, paste it into CloudShell, replace `+51XXXXXXXXX` with the admin's phone
-   number (international format), and run it. The person can then sign in on the web address
-   with that number. The result appears in CloudWatch log group `GoldPassport-…-MakeAdminLogs…`.
-   Run it again for each further admin.
-2. **SMS for Peru.** New AWS accounts can only send SMS to verified numbers. In **AWS End User
-   Messaging SMS**, request production access and an origination identity for Peru before real
-   users sign up. Until then, add test phones under **Sandbox → Destination phone numbers**.
+   number (international format), and run it. The result appears in CloudWatch log group
+   `GoldPassport-…-MakeAdminLogs…`. The person then opens the web address, chooses **Crear
+   cuenta** with that number and any 6-digit PIN, and is asked straight away to choose a staff
+   password of at least 10 characters. (Someone who already has an account just signs in and gets
+   the same request.) Run the command again for each further admin.
+2. **No SMS setup needed.** Nobody receives a code: accounts are confirmed without one and PMD
+   resets forgotten PINs from the web **Users** page. Because the phone number is not proven at
+   sign-up, PMD calls the applicant on that number during the onboarding review.
 3. **Mobile app.** Put the `MobileApiBaseUrl` output in `EXPO_PUBLIC_API_BASE_URL` of the matching
    profile in `apps/mobile/eas.json`, then build with EAS.
 

@@ -5,7 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-/** SHA-256 helpers used for file fingerprints, OTP storage and the custody ledger. */
+/** SHA-256 helpers used for file fingerprints and the custody ledger. */
 public final class Hashing {
 
     private Hashing() {

@@ -22,7 +22,7 @@ To change the API:
 5. CI re-runs all of this and also checks that the generated types were committed.
 
 Swagger UI at `http://localhost:8080/swagger-ui.html` renders the contract. Use the
-**Authorize** button with a token from `POST /api/v1/auth/otp/verify`.
+**Authorize** button with a token from `POST /api/v1/auth/pin/sign-in` (local mode).
 
 ## Conventions
 
@@ -65,13 +65,13 @@ a map of field to message.
 
 | HTTP | Meaning | Codes |
 | --- | --- | --- |
-| 400 | Invalid input | `VALIDATION_FAILED`, `INVALID_PHONE`, `INVALID_DOCUMENT_NUMBER`, `INVALID_COORDINATES`, `INVALID_PURITY`, `INVALID_WEIGHT`, `INVALID_AMOUNT`, `INVALID_CURRENCY`, `FILE_EMPTY`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `PHOTO_REQUIRED`, `NOTES_REQUIRED`, `REASON_REQUIRED`, `CAPTURED_IN_FUTURE`, `RECORDED_IN_FUTURE`, `ENTITY_DETAILS_REQUIRED`, `COUNTERPARTY_REQUIRED`, `COUNTERPARTY_ROLE_NOT_ALLOWED`, `COUNTERPARTY_ROLE_IMMUTABLE`, `SELF_RELATIONSHIP`, `MINE_SITE_REQUIRED`, `LAB_NAME_REQUIRED`, `LOT_REQUIRED`, `PARTIES_REQUIRED`, `PAYMENT_DETAILS_REQUIRED`, `DOCUMENT_KIND_REQUIRED`, `IDEMPOTENCY_KEY_INVALID` |
-| 401 | Not authenticated | `UNAUTHENTICATED`, `OTP_INVALID`, `OTP_EXPIRED`, `USER_SUSPENDED` |
+| 400 | Invalid input | `VALIDATION_FAILED`, `INVALID_PHONE`, `INVALID_DOCUMENT_NUMBER`, `INVALID_COORDINATES`, `INVALID_PURITY`, `INVALID_WEIGHT`, `INVALID_AMOUNT`, `INVALID_CURRENCY`, `FILE_EMPTY`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `PHOTO_REQUIRED`, `NOTES_REQUIRED`, `REASON_REQUIRED`, `CAPTURED_IN_FUTURE`, `RECORDED_IN_FUTURE`, `ENTITY_DETAILS_REQUIRED`, `COUNTERPARTY_REQUIRED`, `COUNTERPARTY_ROLE_NOT_ALLOWED`, `COUNTERPARTY_ROLE_IMMUTABLE`, `SELF_RELATIONSHIP`, `MINE_SITE_REQUIRED`, `LAB_NAME_REQUIRED`, `LOT_REQUIRED`, `PARTIES_REQUIRED`, `PAYMENT_DETAILS_REQUIRED`, `DOCUMENT_KIND_REQUIRED`, `IDEMPOTENCY_KEY_INVALID`, `PIN_NOT_ALLOWED`, `PASSWORD_TOO_SHORT` |
+| 401 | Not authenticated | `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `TEMPORARY_PIN_EXPIRED`, `USER_SUSPENDED` |
 | 403 | Not allowed | `ROLE_REQUIRED`, `ONBOARDING_NOT_APPROVED`, `NOT_A_PARTICIPANT`, `NOT_OWNER`, `FILE_ACCESS_DENIED`, `NOT_APPLICABLE` |
-| 404 | Not found | `NOT_FOUND`, `NOT_AVAILABLE` (OTP endpoints in Cognito mode) |
-| 409 | Not allowed in the current state | `INVALID_STATE`, `CONCURRENT_MODIFICATION`, `DUPLICATE_OR_CONFLICT`, `ALREADY_CONFIRMED`, `ALREADY_APPROVED`, `PICKUP_NOT_AUTHORIZED`, `LOT_NOT_ON_TRANSPORT`, `LAB_RESULT_EXISTS`, `LAB_NOT_VERIFIED`, `RELATIONSHIP_EXISTS`, `ROLE_NOT_SET`, `ROLE_ALREADY_SET`, `ROLE_NOT_ALLOWED`, `IDEMPOTENCY_KEY_IN_USE` (retry after `Retry-After` seconds) |
+| 404 | Not found | `NOT_FOUND`, `NOT_AVAILABLE` (local PIN endpoints in Cognito mode) |
+| 409 | Not allowed in the current state | `INVALID_STATE`, `CONCURRENT_MODIFICATION`, `DUPLICATE_OR_CONFLICT`, `ALREADY_CONFIRMED`, `ALREADY_APPROVED`, `PICKUP_NOT_AUTHORIZED`, `LOT_NOT_ON_TRANSPORT`, `LAB_RESULT_EXISTS`, `LAB_NOT_VERIFIED`, `RELATIONSHIP_EXISTS`, `ROLE_NOT_SET`, `ROLE_ALREADY_SET`, `ROLE_NOT_ALLOWED`, `PHONE_ALREADY_REGISTERED`, `PIN_CHANGE_REQUIRED`, `PIN_CHANGE_NOT_REQUIRED`, `NO_PIN`, `CANNOT_RESET_OWN_PIN`, `NO_ACCOUNT_YET`, `IDEMPOTENCY_KEY_IN_USE` (retry after `Retry-After` seconds) |
 | 422 | Business rule not met | `ONBOARDING_INCOMPLETE`, `EVIDENCE_REQUIRED`, `RELATIONSHIP_REQUIRED`, `MINER_NOT_APPROVED`, `COLLECTOR_NOT_APPROVED`, `COUNTERPARTY_NOT_APPROVED`, `COUNTERPARTY_NOT_ON_PLATFORM`, `IDEMPOTENCY_KEY_REUSED` |
-| 429 | Too many requests | `OTP_RATE_LIMITED` |
+| 429 | Too many requests | `TOO_MANY_ATTEMPTS` (wrong PINs; wait and retry) |
 | 500 | Unexpected | `INTERNAL_ERROR` (details only in server logs) |
 
 ## Endpoint map
@@ -83,9 +83,10 @@ transport or lot.
 
 | Method and path | Caller |
 | --- | --- |
-| `GET /auth/config` | anyone: tells the apps whether to use local OTP or Cognito |
-| `POST /auth/otp/request`, `POST /auth/otp/verify` | anyone (local mode only) |
+| `GET /auth/config` | anyone: tells the apps whether the backend checks PINs itself or Cognito does |
+| `POST /auth/pin/sign-up`, `POST /auth/pin/sign-in`, `POST /auth/pin/new` (replace a temporary PIN) | anyone (local mode only) |
 | `GET /me`, `PATCH /me` | signed in |
+| `PUT /me/pin` | signed in (local mode only; in Cognito mode the apps call Cognito `ChangePassword`) |
 | `PUT /me/role` | signed in, once; `ADMIN` not allowed |
 | `GET /participants?role=&q=` | approved participants: directory of approved users |
 
@@ -99,6 +100,7 @@ transport or lot.
 | `GET /admin/onboarding`, `GET /admin/onboarding/{id}` | PMD |
 | `POST /admin/onboarding/{id}/approve`, `/request-corrections`, `/reject` | PMD |
 | `GET /admin/users` | PMD |
+| `POST /admin/users/{userId}/reset-pin` | PMD, for anyone but themselves: temporary PIN shown once, valid 7 days, signs the person out everywhere |
 
 ### Relationships
 

@@ -20,8 +20,8 @@ docker compose up --build
 - API: <http://localhost:8080>, Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health: <http://localhost:8080/actuator/health>
 
-The backend runs with the `local` profile: demo data is seeded and the OTP code is always `123456`
-(it is also returned by the API and pre-filled by the apps).
+The backend runs with the `local` profile: demo data is seeded. The demo accounts sign in with PIN
+`135790`; the PMD admin `+51900000001` uses the password `pmd-demo-2026` (see the README).
 
 ## Option B: run from your IDE
 
@@ -57,7 +57,8 @@ Camera, GPS and secure storage work in Expo Go; native push notifications need a
 
 ## Demo walkthrough
 
-Uses the seeded accounts (OTP `123456`). The transporter already has approved relationships.
+Uses the seeded accounts (PIN `135790`, PMD admin password `pmd-demo-2026`). The transporter already
+has approved relationships.
 
 1. **Mobile, miner `+51900000002`**: Lots → New lot → name the socavón → Take extraction photo
    (allow camera and location) → Close lot → Laboratory check: enter lab, purity `92.5`, weight
@@ -153,7 +154,9 @@ account.
 ## Useful things to know
 
 - **Reset the local database**: `docker compose down -v` (drops the `pgdata` volume).
-- **OTP codes** in non-local profiles are printed in the backend log: `[local-auth] OTP for ... is ...`.
+- **Forgot a demo PIN?** Sign in to the web as the PMD admin → Users → *Restablecer PIN*. The
+  temporary PIN is shown once; the person chooses a new one at the next sign-in. Five wrong PINs in a
+  row lock an account for 15 minutes (`pmd.auth.local.max-attempts`, `lockout`).
 - **Push notifications** locally are printed as `[push:ANDROID] ...` in the backend log; every
   notification is also in the in-app inbox.
 - **Uploaded files** live in `./data/storage` (or the `storage` Docker volume).
