@@ -1,0 +1,15 @@
+# Build context of backend/Dockerfile (the repository root). Keep it to what the image needs.
+.git
+.github
+**/node_modules
+**/.next
+**/.expo
+infra
+apps
+docs
+scripts
+backend/target
+backend/data
+data
+.env
+**/.env*

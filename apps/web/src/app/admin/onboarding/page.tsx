@@ -6,6 +6,7 @@ import { Empty, ErrorNotice, Loading, PageHead, StatusTag } from "@/components/u
 import { api, call, type Schemas } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useLoad } from "@/lib/hooks";
+import { isEnabled } from "@/lib/features";
 import { useI18n } from "@/lib/i18n";
 
 type Status = Schemas["OnboardingStatus"];
@@ -53,7 +54,7 @@ export default function OnboardingQueue() {
                   <th>{t("admin.onb.applicant")}</th>
                   <th>{t("common.role")}</th>
                   <th>{t("common.document")}</th>
-                  <th>{t("admin.onb.kyc")}</th>
+                  {isEnabled("automaticIdCheck") && <th>{t("admin.onb.kyc")}</th>}
                   <th>{t("admin.onb.submitted")}</th>
                   <th>{t("common.status")}</th>
                 </tr>
@@ -67,7 +68,7 @@ export default function OnboardingQueue() {
                     </td>
                     <td>{t(`role.${a.role}`)}</td>
                     <td>{a.role === "COLLECTOR" ? `RUC ${a.ruc ?? "—"}` : `${a.documentType ?? ""} ${a.documentNumber ?? "—"}`}</td>
-                    <td>{t(`kyc.${a.kycStatus}`)}</td>
+                    {isEnabled("automaticIdCheck") && <td>{t(`kyc.${a.kycStatus}`)}</td>}
                     <td className="muted">{formatDateTime(a.submittedAt, locale)}</td>
                     <td><StatusTag status={a.status} /></td>
                   </tr>

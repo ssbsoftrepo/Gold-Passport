@@ -7,7 +7,7 @@ anyone can verify from the lot code.
 
 | App | Who uses it | Tech |
 | --- | --- | --- |
-| `backend/` | Everyone, through the apps | Java 21, Spring Boot 3.5 modular monolith (Spring Modulith), PostgreSQL, Flyway |
+| `backend/` | Everyone, through the apps | Java 21, Spring Boot 4.1 modular monolith (Spring Modulith), PostgreSQL, Flyway |
 | `apps/web/` | PMD back office, Collectors/Plants, public passport page | Next.js 16 (React 19, TypeScript) |
 | `apps/mobile/` | Miners and Transporters in the field (works offline) | React Native + Expo SDK 58 (TypeScript) |
 | `api/openapi.yaml` | The contract between all three | OpenAPI 3.0, single source of truth |
@@ -54,8 +54,13 @@ whole flow at once: see [docs/local-development.md](docs/local-development.md#de
 | [docs/architecture.md](docs/architecture.md) | Modules, events, adapters, data model, request lifecycle |
 | [docs/api.md](docs/api.md) | Contract-first workflow, conventions, error codes, endpoint map |
 | [docs/local-development.md](docs/local-development.md) | Running, testing and debugging locally |
+| [docs/deploy.md](docs/deploy.md) | One-click deployment to AWS (setup, Deploy button, first admin) |
 | [docs/deployment-aws.md](docs/deployment-aws.md) | Target AWS architecture and configuration |
+| [docs/field-trial.md](docs/field-trial.md) | Trying the mobile app on real phones at a mine: scenarios, pass criteria, what to collect |
+| [docs/crash-reporting.md](docs/crash-reporting.md) | Crash and problem reports from the apps (Sentry) |
+| [docs/releases.md](docs/releases.md) | Releasing by phase: which features each release shows, and how to build it |
 | [docs/security.md](docs/security.md) | Authentication, authorization, evidence integrity, data protection |
+| [docs/monitoring.md](docs/monitoring.md) | Metrics, alarms, dashboard and the runbook for each alarm |
 | [docs/decisions.md](docs/decisions.md) | Architecture decision records |
 
 ## Repository layout
@@ -65,8 +70,10 @@ api/                 openapi.yaml (the contract) + Redocly lint config
 backend/             Spring Boot modular monolith (one Java package per module, one DB schema per module)
 apps/web/            Next.js back office + Collector/Plant portal + public passport
 apps/mobile/         Expo app for Miners and Transporters (offline outbox, camera, GPS)
+infra/               AWS CDK app: one-click deployment to AWS (docs/deploy.md)
 docs/                Technical documentation
+infra/               CloudFormation for alarms and the dashboard (monitoring.yml)
 scripts/             Developer scripts (run backend, regenerate API types, lint the contract)
 docker-compose.yml   Local stack (PostgreSQL, backend, web, optional LocalStack)
-.github/workflows/   CI: contract, backend, web, mobile
+.github/workflows/   CI: contract, backend, web, mobile, infrastructure; Deploy (manual, to AWS)
 ```

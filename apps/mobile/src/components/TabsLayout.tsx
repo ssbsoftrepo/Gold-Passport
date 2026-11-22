@@ -1,6 +1,7 @@
 import { Redirect } from "expo-router";
 import { Tabs } from "expo-router/js-tabs";
 import { Text, View } from "react-native";
+import { isEnabled, type Feature } from "@/lib/features";
 import { useI18n } from "@/lib/i18n";
 import { useOutbox } from "@/lib/outbox";
 import { homeRoute, useSession } from "@/lib/session";
@@ -22,8 +23,13 @@ function Glyph({ focused }: { focused: boolean }) {
   );
 }
 
-/** Bottom tabs for one role; guards the role and approved onboarding. */
-export function RoleTabs({ role, tabs }: { role: "MINER" | "TRANSPORTER"; tabs: { name: string; titleKey: string }[] }) {
+type Tab = { name: string; titleKey: string; feature?: Feature };
+
+/**
+ * Bottom tabs for one role; guards the role and approved onboarding. A tab whose feature is not in
+ * this release is hidden, except the first (home), which then shows its "coming soon" screen.
+ */
+export function RoleTabs({ role, tabs }: { role: "MINER" | "TRANSPORTER"; tabs: Tab[] }) {
   const { t } = useI18n();
   const { status, user, onboarding } = useSession();
   const { items } = useOutbox();
@@ -43,17 +49,21 @@ export function RoleTabs({ role, tabs }: { role: "MINER" | "TRANSPORTER"; tabs: 
         tabBarLabelStyle: { fontSize: 13, fontWeight: "600" },
       }}
     >
-      {tabs.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            title: t(tab.titleKey),
-            tabBarIcon: ({ focused }) => <Glyph focused={focused} />,
-            tabBarBadge: tab.name === "profile" && pending > 0 ? pending : undefined,
-          }}
-        />
-      ))}
+      {tabs.map((tab, i) => {
+        const released = !tab.feature || isEnabled(tab.feature);
+        return (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              href: released || i === 0 ? undefined : null,
+              title: t(released ? tab.titleKey : "tabs.home"),
+              tabBarIcon: ({ focused }) => <Glyph focused={focused} />,
+              tabBarBadge: tab.name === "profile" && pending > 0 ? pending : undefined,
+            }}
+          />
+        );
+      })}
     </Tabs>
   );
 }

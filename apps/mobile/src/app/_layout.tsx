@@ -3,11 +3,14 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { startFieldLog } from "@/lib/fieldLog";
 import { I18nProvider, useI18n } from "@/lib/i18n";
+import { initMonitoring, OutboxMonitor } from "@/lib/monitoring";
 import { OutboxProvider } from "@/lib/outbox";
 import { SessionProvider, useSession } from "@/lib/session";
 import { colors } from "@/lib/theme";
 
+initMonitoring();
 void SplashScreen.preventAutoHideAsync();
 
 function Navigator() {
@@ -44,11 +47,14 @@ function Navigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => startFieldLog(), []);
+
   return (
     <SafeAreaProvider>
       <I18nProvider>
         <SessionProvider>
           <OutboxProvider>
+            <OutboxMonitor />
             <StatusBar style="light" />
             <Navigator />
           </OutboxProvider>

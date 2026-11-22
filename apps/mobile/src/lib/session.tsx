@@ -1,10 +1,23 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, call, setAccessToken, type Schemas } from "./api";
+import { api, call, setAccessToken, setTokenRenewer, type Schemas } from "./api";
+import { clearCache } from "./cache";
+import { revokeCognitoToken } from "./cognito";
+import {
+  forgetCognitoRefresh,
+  readCognitoRefresh,
+  renewCognitoToken,
+  saveCognitoRefresh,
+  TOKEN_KEY,
+  type CognitoRefresh,
+} from "./refresh";
 import { registerForPush } from "./push";
 
-/** Access token in the device keystore (SecureStore) + the current user and onboarding state. */
+/**
+ * Access token in the device keystore (SecureStore) + the current user and onboarding state. With
+ * Cognito the refresh token is kept too, and the API client renews the token with it (refresh.ts).
+ */
 
 type User = Schemas["UserProfile"];
 type Application = Schemas["OnboardingApplication"];
@@ -13,13 +26,12 @@ type Session = {
   status: "loading" | "anonymous" | "authenticated";
   user: User | null;
   onboarding: Application | null;
-  signIn: (token: string) => Promise<void>;
+  signIn: (token: string, cognito?: CognitoRefresh) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<Session | null>(null);
-const TOKEN_KEY = "pmd.token";
 const CACHE_KEY = "pmd.session.cache";
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -38,8 +50,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    const saved = await readCognitoRefresh().catch(() => null);
+    // Best effort: without signal the refresh token simply expires on its own.
+    if (saved) void revokeCognitoToken(saved, saved.refreshToken).catch(() => undefined);
+    await forgetCognitoRefresh();
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => undefined);
     await AsyncStorage.removeItem(CACHE_KEY).catch(() => undefined);
+    await clearCache();
     setAccessToken(null);
     setUser(null);
     setOnboarding(null);
@@ -47,7 +64,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    async (token: string) => {
+    async (token: string, cognito?: CognitoRefresh) => {
+      if (cognito) await saveCognitoRefresh(cognito);
+      else await forgetCognitoRefresh();
       await SecureStore.setItemAsync(TOKEN_KEY, token);
       setAccessToken(token);
       await refresh();
@@ -57,6 +76,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    setTokenRenewer(renewCognitoToken);
+    return () => setTokenRenewer(null);
+  }, []);
+
+  useEffect(() => {
     SecureStore.getItemAsync(TOKEN_KEY)
       .then(async (token) => {
         if (!token) {
@@ -64,23 +88,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         setAccessToken(token);
+        // Open straight away from the cached profile: on a weak signal the refresh below can take
+        // a long time, and at the mine there may be none. The refresh updates it when it arrives.
+        const cached = await AsyncStorage.getItem(CACHE_KEY).catch(() => null);
+        if (cached) {
+          const { user: u, onboarding: o } = JSON.parse(cached) as { user: User; onboarding: Application | null };
+          setUser(u);
+          setOnboarding(o);
+          setStatus("authenticated");
+        }
         try {
           await refresh();
           void registerForPush();
         } catch (e) {
-          // Offline at startup: keep the token, show the app; 401 means the token expired.
+          // Offline at startup: keep the token and the cached profile. A 401 means the token expired
+          // and could not be renewed (the API client already tried the refresh token).
           if (e && typeof e === "object" && "status" in e && (e as { status: number }).status === 401) {
             await signOut();
-          } else {
-            const cached = await AsyncStorage.getItem(CACHE_KEY);
-            if (cached) {
-              const { user: u, onboarding: o } = JSON.parse(cached) as { user: User; onboarding: Application | null };
-              setUser(u);
-              setOnboarding(o);
-              setStatus("authenticated");
-            } else {
-              setStatus("anonymous");
-            }
+          } else if (!cached) {
+            setStatus("anonymous");
           }
         }
       })
