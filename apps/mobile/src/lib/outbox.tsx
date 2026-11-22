@@ -39,7 +39,10 @@ export type OutboxItem = (JsonItem | UploadItem) & {
   createdAt: string;
   /** Group key so screens can show "n pending" (e.g. "lot:<id>"). */
   scope: string;
+  /** Why the server refused it, for the user (may name people). */
   error?: string;
+  /** The same as a code (`errorName`), safe to report. */
+  errorCode?: string;
 };
 
 export type NewItem = JsonItem | UploadItem;
@@ -206,7 +209,9 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
             break;
           }
           const message = e instanceof Error ? e.message : String(e);
-          await persist(itemsRef.current.map((i) => (i.id === item.id ? { ...i, error: message } : i)));
+          await persist(
+            itemsRef.current.map((i) => (i.id === item.id ? { ...i, error: message, errorCode: errorName(e) } : i)),
+          );
         }
       }
     } finally {

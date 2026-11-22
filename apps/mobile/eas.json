@@ -7,16 +7,24 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_API_BASE_URL": "http://10.0.2.2:8080" }
+      "env": { "EXPO_PUBLIC_API_BASE_URL": "http://10.0.2.2:8080", "SENTRY_DISABLE_AUTO_UPLOAD": "true" }
     },
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_BASE_URL": "https://api.staging.example.pe" }
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.staging.example.pe",
+        "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "staging",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_BASE_URL": "https://api.example.pe" }
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.example.pe",
+        "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "production",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     }
   },
   "submit": {
