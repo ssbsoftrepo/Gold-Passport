@@ -54,8 +54,10 @@ whole flow at once: see [docs/local-development.md](docs/local-development.md#de
 | [docs/architecture.md](docs/architecture.md) | Modules, events, adapters, data model, request lifecycle |
 | [docs/api.md](docs/api.md) | Contract-first workflow, conventions, error codes, endpoint map |
 | [docs/local-development.md](docs/local-development.md) | Running, testing and debugging locally |
+| [docs/deploy.md](docs/deploy.md) | One-click deployment to AWS (setup, Deploy button, first admin) |
 | [docs/deployment-aws.md](docs/deployment-aws.md) | Target AWS architecture and configuration |
 | [docs/security.md](docs/security.md) | Authentication, authorization, evidence integrity, data protection |
+| [docs/monitoring.md](docs/monitoring.md) | Metrics, alarms, dashboard and the runbook for each alarm |
 | [docs/decisions.md](docs/decisions.md) | Architecture decision records |
 
 ## Repository layout
@@ -65,8 +67,10 @@ api/                 openapi.yaml (the contract) + Redocly lint config
 backend/             Spring Boot modular monolith (one Java package per module, one DB schema per module)
 apps/web/            Next.js back office + Collector/Plant portal + public passport
 apps/mobile/         Expo app for Miners and Transporters (offline outbox, camera, GPS)
+infra/               AWS CDK app: one-click deployment to AWS (docs/deploy.md)
 docs/                Technical documentation
+infra/               CloudFormation for alarms and the dashboard (monitoring.yml)
 scripts/             Developer scripts (run backend, regenerate API types, lint the contract)
 docker-compose.yml   Local stack (PostgreSQL, backend, web, optional LocalStack)
-.github/workflows/   CI: contract, backend, web, mobile
+.github/workflows/   CI: contract, backend, web, mobile, infrastructure; Deploy (manual, to AWS)
 ```
