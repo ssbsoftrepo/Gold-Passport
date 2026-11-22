@@ -64,8 +64,8 @@ Ordered by priority.
    the web and mobile apps on an emulator.
 2. Upgrade path: Spring Boot 3.5 open-source support ends around mid-2026; plan Spring Boot 4 /
    Spring Modulith 2 (Jackson 3, moved test annotations). Add the Maven wrapper (`mvn -N wrapper:wrapper`).
-3. Infrastructure as code (CDK or Terraform) for the architecture in deployment-aws.md; a staging
-   environment with Cognito, S3 and SNS; validate the Cognito passwordless flow in both apps.
+3. Deploy staging with the one-click workflow (deploy.md: AWS CDK in `infra/`); add SNS push;
+   validate the Cognito passwordless flow in both apps.
 4. Mobile: development build on real Android phones used in the field (low-end devices, poor
    signal); validate the offline outbox, camera and GPS accuracy at a real mine site.
 
