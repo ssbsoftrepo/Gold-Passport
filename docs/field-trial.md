@@ -61,7 +61,7 @@ data at all.
 
 | ID | Where | Steps | Check |
 | --- | --- | --- | --- |
-| S1 | Office | Sign in with the SMS code; open every tab | Works; the app opens again offline with the last data shown |
+| S1 | Office | Sign in with phone number and PIN; open every tab | Works; the app opens again offline with the last data shown |
 | S2 | Mine, offline | Create a lot, add 3 extraction photos, complete it | The app says each action is saved and will be sent; Profile → Pending uploads lists them |
 | S3 | Mine → road | Walk or drive until there is a signal; do nothing in the app | Q2: items leave on their own (note the time signal returned and when Pending uploads emptied) |
 | S4 | Weak signal (1–2 bars) | Add a photo; time it | Q3 |

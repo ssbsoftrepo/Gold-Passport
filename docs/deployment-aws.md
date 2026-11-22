@@ -22,7 +22,7 @@ flowchart TB
         API --> REK[Amazon Rekognition]
         API --> SNS[Amazon SNS<br/>platform apps FCM + APNs]
         API --> SM[Secrets Manager]
-        COG[Amazon Cognito user pool<br/>passwordless SMS OTP]
+        COG[Amazon Cognito user pool<br/>phone + PIN, no SMS]
         CW[CloudWatch logs, metrics, alarms]
     end
     MOB --> WAF
@@ -49,7 +49,7 @@ Notes:
 
 | Variable | Purpose | Example |
 | --- | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | Never `local` outside laptops (it seeds demo users and a fixed OTP) | `prod` |
+| `SPRING_PROFILES_ACTIVE` | Never `local` outside laptops (it seeds demo users with a known PIN) | `prod` |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | RDS connection (password from Secrets Manager) | `jdbc:postgresql://pmd.xxxx.sa-east-1.rds.amazonaws.com:5432/goldpassport` |
 | `DB_POOL_SIZE` | Hikari pool per task | `10` |
 | `DB_CONNECTION_TIMEOUT_MS` | How long a request waits for a pooled connection before failing (keep below the mobile app's 20 s timeout) | `10000` |
@@ -58,6 +58,7 @@ Notes:
 | `PMD_AUTH_MODE` | `cognito` in AWS | `cognito` |
 | `PMD_COGNITO_ISSUER_URI` | User pool issuer | `https://cognito-idp.sa-east-1.amazonaws.com/sa-east-1_AbCdEf` |
 | `PMD_COGNITO_REGION`, `PMD_COGNITO_CLIENT_ID` | Returned to the apps by `/auth/config` | `sa-east-1`, `4h3...` |
+| `PMD_COGNITO_USER_POOL_ID` | The pool PMD resets forgotten PINs in | `sa-east-1_AbCdEf` |
 | `PMD_STORAGE_PROVIDER` | `s3` | `s3` |
 | `PMD_S3_BUCKET`, `PMD_S3_REGION`, `PMD_S3_KMS_KEY_ID` | Evidence bucket | `pmd-evidence-prod`, `sa-east-1`, key ARN |
 | `PMD_KYC_PROVIDER`, `PMD_KYC_REGION` | `aws` enables Rekognition checks | `aws`, `sa-east-1` |
@@ -75,31 +76,37 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
   and a warning is logged.
 - `rekognition:CompareFaces`, `rekognition:DetectText`
 - `sns:CreatePlatformEndpoint`, `sns:Publish` on the platform applications
+- `cognito-idp:AdminSetUserPassword`, `cognito-idp:AdminUserGlobalSignOut` on the user pool (PMD PIN resets)
 - `cloudwatch:PutMetricData`, limited to the environment's namespace (see [monitoring.md](monitoring.md))
 
 ## Amazon Cognito
 
-- User pool with **choice-based sign-in** and **SMS OTP** as a first factor (passwordless). This
-  needs the Essentials (or Plus) feature plan.
-- Phone number as the username; attribute `phone_number` required.
-- App client without secret, auth flow `ALLOW_USER_AUTH` (plus `ALLOW_REFRESH_TOKEN_AUTH`).
+- Phone number + 6-digit PIN, sent to Cognito as the password (`USER_PASSWORD_AUTH`). **No SMS is
+  ever sent**, so the free **Lite** feature plan is enough and there is no SMS sandbox, origination
+  identity or per-message cost.
+- Phone number as the username; attribute `phone_number` required, not verified.
+- Password policy: minimum length 6 with no character classes (the apps refuse easy PINs such as
+  `123456`, and ask PMD staff for 10+ characters); temporary passwords valid for **7 days**.
+- A **pre sign-up Lambda** sets `autoConfirmUser`, so new accounts need no code. Account recovery is
+  **admin only**: PMD resets a forgotten PIN from the web Users page, and the backend calls
+  `AdminSetUserPassword` (temporary) and `AdminUserGlobalSignOut`.
+- App client without secret, auth flow `ALLOW_USER_PASSWORD_AUTH` (plus `ALLOW_REFRESH_TOKEN_AUTH`),
+  user existence errors prevented (an unknown number and a wrong PIN look the same).
 - **Refresh token validity** decides how long a phone can stay offline (or unused) before the user
-  needs a new SMS code. The mobile app keeps the refresh token in the device keystore and renews the
+  must type their PIN again. The mobile app keeps the refresh token in the device keystore and renews the
   1-hour ID token with it (`GetTokensFromRefreshToken`) before it expires and whenever the API answers
   401, so a miner who is offline all day still sends their queue in the evening. Cognito's default
   of 30 days suits field work; shorten it only together with the business. Keep token revocation on
-  (the default): signing out revokes the refresh token.
+  (the default): signing out revokes the refresh token, and a PMD reset signs the person out everywhere.
 - Refresh token rotation is optional and supported. If you turn it on, keep the retry grace period
   at 60 seconds: on a weak signal the answer carrying the new refresh token can be lost, and the
   grace period lets the app retry with the old one.
-- SMS delivery uses AWS End User Messaging SMS: request production access and an origination
-  identity for Peru before go-live (the sandbox only sends to verified numbers).
 - The apps send the Cognito **ID token** (it carries `phone_number`). The backend validates it
   against the pool's JWKS and provisions the platform user on first use; roles stay in the
   platform database.
-- PMD admins: create the user in Cognito, sign in once, then set `role = 'ADMIN'` in
-  `identity.users` (or pre-create the row with the phone number and role; it is linked on first
-  sign-in).
+- PMD admins: pre-create the row with the phone number and `role = 'ADMIN'` (the `MakeAdminCommand`
+  output does this, see [deploy.md](deploy.md)); it is linked when the person creates their account,
+  and the web asks them for a 10+ character staff password right away.
 - The Cognito helpers in `apps/*/src/lib/cognito.ts` call the public Cognito API directly; validate
   them against your pool configuration before go-live.
 

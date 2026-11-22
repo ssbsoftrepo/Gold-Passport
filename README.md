@@ -13,7 +13,8 @@ anyone can verify from the lot code.
 | `api/openapi.yaml` | The contract between all three | OpenAPI 3.0, single source of truth |
 
 AWS services (Cognito, S3, Rekognition, SNS) sit behind adapters. Locally everything runs without
-AWS: OTP codes are logged, files go to disk, KYC is a stub and push notifications are logged.
+AWS: sign-in checks the PIN itself, files go to disk, KYC is a stub and push notifications are logged.
+No SMS is sent anywhere: people sign in with their phone number and a 6-digit PIN.
 
 ## Quick start
 
@@ -33,14 +34,16 @@ cd apps/web && npm install && npm run dev   # http://localhost:3000
 cd apps/mobile && npm install && npx expo start   # press "a" for the Android emulator
 ```
 
-### Demo accounts (`local` profile, OTP code `123456`)
+### Demo accounts (`local` profile)
 
-| Phone | Role | Use in |
-| --- | --- | --- |
-| +51900000001 | PMD back office (ADMIN) | web |
-| +51900000002 | Miner, Rosa Quispe | mobile |
-| +51900000003 | Transporter, Jorge Mamani | mobile |
-| +51900000004 | Collector/Plant, Planta Aurifera Sur SAC | web |
+| Phone | PIN / password | Role | Use in |
+| --- | --- | --- | --- |
+| +51900000001 | `pmd-demo-2026` | PMD back office (ADMIN) | web |
+| +51900000002 | `135790` | Miner, Rosa Quispe | mobile |
+| +51900000003 | `135790` | Transporter, Jorge Mamani | mobile |
+| +51900000004 | `135790` | Collector/Plant, Planta Aurifera Sur SAC | web |
+
+PMD staff sign in with a password of at least 10 characters; everyone else with a 6-digit PIN.
 
 The transporter already has approved relationships with the miner and the plant, so you can run the
 whole flow at once: see [docs/local-development.md](docs/local-development.md#demo-walkthrough).

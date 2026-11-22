@@ -104,3 +104,25 @@ Next.js server only serves the app.
 
 **Consequences.** One source of truth for authorization (the backend); simple mental model.
 Server-side rendering of the public passport (for SEO or link previews) is a possible later step.
+
+## ADR-009: Phone number + PIN, no SMS
+
+**Context.** Sign-in first used one-time codes sent by SMS. PMD asked to avoid them: SMS costs money
+per message (and needs Cognito's paid Essentials plan, an origination identity for Peru and AWS
+approval), and field phones often have no signal when a code would arrive.
+
+**Decision.** Everyone signs in with their phone number and a 6-digit PIN; PMD staff (`ADMIN`) use a
+password of at least 10 characters. No SMS is sent, not even to recover a PIN: PMD resets forgotten
+PINs from the web Users page; the temporary PIN is shown once, works for 7 days, must be replaced at
+the next sign-in, and signs the person out everywhere (November 2026).
+
+**Consequences.**
+
+- Running cost of sign-in is zero (Cognito Lite plan).
+- The phone number is not proven at sign-up. PMD calls the applicant on that number during the
+  onboarding review, before approving.
+- A 6-digit PIN is weaker than a code: easy PINs are refused, repeated wrong PINs lock the account
+  (local mode) or are throttled (Cognito), and staff who see everyone's documents need a longer
+  password.
+- PMD must be reachable to reset PINs. If self-service recovery is needed later, a paid channel
+  (SMS or WhatsApp) can be added for resets only.

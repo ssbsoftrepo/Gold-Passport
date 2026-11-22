@@ -11,7 +11,7 @@ The table lives in `apps/mobile/src/lib/features.ts` and `apps/web/src/lib/featu
 | Phase | Users get | Phone app | Web (plant portal and PMD office) |
 | --- | --- | --- | --- |
 | 0 | Nothing visible: designs, database, cloud setup | | |
-| **1** | **Sign-in, sign-up and PMD approval** | SMS sign-in, role, sign-up forms and documents, "pending approval", then "Your account is approved" with what is coming. Inbox and profile. | Plant sign-up. PMD: onboarding review (approve, request corrections) and users |
+| **1** | **Sign-in, sign-up and PMD approval** | Sign-in with phone number + PIN (no SMS), role, sign-up forms and documents, "pending approval", then "Your account is approved" with what is coming. Inbox and profile. | Plant sign-up. PMD: onboarding review (approve, request corrections) and users, with PIN resets |
 | 2 | The miner's batches | Batches: photos with GPS, weight and purity, lab report | PMD: batches |
 | 3 | Transport | Partners, trips, pickup and delivery; the miner's Trips tab | Plant: incoming trips and partners. PMD: partner links and trips |
 | 4 | Plant, lab and payment | The miner's Payments tab | Plant: overview, received batches, lab check, payments. PMD: lab disagreements and payments |

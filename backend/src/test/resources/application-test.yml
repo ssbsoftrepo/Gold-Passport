@@ -1,9 +1,8 @@
 pmd:
   auth:
     local:
-      # Random codes are used (fixed-otp empty) but returned by the API so tests can log in.
-      expose-code: true
-      max-requests-per-window: 1000
+      # Tests sign many people in; keep the lockout out of their way (PinSignInTest covers it).
+      max-attempts: 1000
   storage:
     local-dir: target/test-storage
 

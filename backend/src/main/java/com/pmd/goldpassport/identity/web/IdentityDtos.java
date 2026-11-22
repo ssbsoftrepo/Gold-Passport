@@ -21,13 +21,18 @@ final class IdentityDtos {
     record AuthConfig(String mode, String cognitoRegion, String cognitoClientId) {
     }
 
-    record OtpRequest(@NotBlank String phone) {
+    /** A 6-digit PIN, or a password of 10+ characters for PMD staff. */
+    record PinSignInRequest(@NotBlank String phone, @NotBlank @Size(max = 128) String pin) {
     }
 
-    record OtpChallenge(long expiresInSeconds, String devCode) {
+    record NewPinRequest(@NotBlank String phone, @NotBlank @Size(max = 128) String temporaryPin,
+            @NotBlank @Size(max = 128) String newPin) {
     }
 
-    record OtpVerifyRequest(@NotBlank String phone, @NotBlank String code) {
+    record ChangePinRequest(@NotBlank @Size(max = 128) String currentPin, @NotBlank @Size(max = 128) String newPin) {
+    }
+
+    record TemporaryPinResponse(String temporaryPin, Instant expiresAt) {
     }
 
     record TokenResponse(String accessToken, String tokenType, long expiresIn, UserProfile user) {

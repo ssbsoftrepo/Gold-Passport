@@ -101,6 +101,7 @@ export default function OnboardingReview() {
             <section className="panel stack">
               <h2>{t("admin.onb.decision")}</h2>
               <p className="muted">{t("admin.onb.decisionHelp")}</p>
+              <div className="notice notice-wait">{t("admin.onb.callApplicant", { phone: app.phone })}</div>
               <ErrorNotice error={action.error} />
               <DecisionForm
                 noteLabel={t("common.notes")}

@@ -74,6 +74,8 @@ Requirements before submit (`Requirements.java`):
 
 After submission, automated identity checks run asynchronously (`KycService`). The result
 (`PASSED`, `NEEDS_REVIEW`, `FAILED`) is **advisory**: a PMD reviewer always decides.
+Because sign-in sends no SMS, the phone number is not proven at sign-up: the reviewer calls the
+applicant on it before approving (ADR-009).
 
 Every action other than onboarding requires an `APPROVED` application
 (`ParticipantDirectory.requireApproved`).

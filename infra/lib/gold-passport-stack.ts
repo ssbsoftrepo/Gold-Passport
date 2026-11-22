@@ -9,6 +9,7 @@ import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as kms from "aws-cdk-lib/aws-kms";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -30,7 +31,7 @@ const CLOUDFRONT_PREFIX_LIST = "com.amazonaws.global.cloudfront.origin-facing";
  * One complete Gold Passport environment (docs/deploy.md):
  *
  *   browser / mobile app ──HTTPS──> CloudFront ──VPC origin──> internal load balancer
- *       /api/*  -> backend (ECS Fargate)  -> RDS PostgreSQL, S3 evidence bucket, Cognito, SNS
+ *       /api/*  -> backend (ECS Fargate)  -> RDS PostgreSQL, S3 evidence bucket, Cognito (no SMS), SNS
  *       else    -> web (ECS Fargate, Next.js)
  *
  * Nothing but CloudFront is reachable from the internet: the load balancer, containers and
@@ -116,28 +117,55 @@ export class GoldPassportStack extends cdk.Stack {
     });
 
     // ---------------------------------------------------------------- sign-in (Cognito)
+    // Phone number + 6-digit PIN (PMD staff: a password of 10+ characters, checked by the web app).
+    // No SMS is ever sent: new accounts are confirmed by the pre sign-up trigger, and a forgotten PIN
+    // is reset by PMD from the Users page (the backend calls AdminSetUserPassword).
+    const preSignUp = new lambda.Function(this, "PreSignUp", {
+      description: "Gold Passport: confirm new phone number + PIN accounts without sending an SMS",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      handler: "index.handler",
+      code: lambda.Code.fromInline(
+        "exports.handler = async (event) => { event.response.autoConfirmUser = true; return event; };",
+      ),
+      memorySize: 128,
+      timeout: cdk.Duration.seconds(5),
+      logGroup: new logs.LogGroup(this, "PreSignUpLogs", {
+        retention: config.logRetentionDays as logs.RetentionDays,
+        removalPolicy: retainOrDestroy,
+      }),
+    });
     const userPool = new cognito.UserPool(this, "Users", {
       userPoolName: `gold-passport-${config.name}`,
-      // Choice-based sign-in with SMS codes needs the Essentials plan.
-      featurePlan: cognito.FeaturePlan.ESSENTIALS,
+      // Password sign-in only: the free Lite plan is enough.
+      featurePlan: cognito.FeaturePlan.LITE,
       selfSignUpEnabled: true,
       signInAliases: { phone: true },
-      autoVerify: { phone: true },
+      autoVerify: { phone: false },
       standardAttributes: { phoneNumber: { required: true, mutable: true } },
-      // Passwordless: users sign in with a code sent by SMS (Cognito requires password to stay listed).
-      signInPolicy: { allowedFirstAuthFactors: { password: true, smsOtp: true } },
-      accountRecovery: cognito.AccountRecovery.PHONE_ONLY_WITHOUT_MFA,
+      // A 6-digit PIN is the password; the apps refuse easy ones (000000, 123456, ...).
+      passwordPolicy: {
+        minLength: 6,
+        requireLowercase: false,
+        requireUppercase: false,
+        requireDigits: false,
+        requireSymbols: false,
+        // A temporary PIN from a PMD reset works for 7 days (the backend's pmd.auth.temporary-pin-ttl).
+        tempPasswordValidity: cdk.Duration.days(7),
+      },
+      lambdaTriggers: { preSignUp },
+      accountRecovery: cognito.AccountRecovery.NONE,
       mfa: cognito.Mfa.OFF,
+      enableSmsRole: false,
       deletionProtection: production,
       removalPolicy: retainOrDestroy,
     });
     const appClient = userPool.addClient("AppClient", {
       userPoolClientName: "gold-passport-apps",
       generateSecret: false,
-      authFlows: { user: true },
+      authFlows: { userPassword: true },
       disableOAuth: true,
-      // The apps sign new phone numbers up when Cognito answers UserNotFoundException.
-      preventUserExistenceErrors: false,
+      // An unknown number and a wrong PIN get the same answer.
+      preventUserExistenceErrors: true,
       enableTokenRevocation: true,
       idTokenValidity: cdk.Duration.hours(1),
       accessTokenValidity: cdk.Duration.hours(1),
@@ -258,6 +286,7 @@ export class GoldPassportStack extends cdk.Stack {
         PMD_COGNITO_ISSUER_URI: userPool.userPoolProviderUrl,
         PMD_COGNITO_REGION: this.region,
         PMD_COGNITO_CLIENT_ID: appClient.userPoolClientId,
+        PMD_COGNITO_USER_POOL_ID: userPool.userPoolId,
         PMD_AUTH_CORSALLOWEDORIGINS_0: publicUrl,
         PMD_STORAGE_PROVIDER: "s3",
         PMD_S3_BUCKET: evidence.bucketName,
@@ -283,6 +312,8 @@ export class GoldPassportStack extends cdk.Stack {
       },
     });
     evidence.grantReadWrite(backendTask.taskRole);
+    // PMD resets a forgotten PIN: a temporary one, and the person is signed out everywhere.
+    userPool.grant(backendTask.taskRole, "cognito-idp:AdminSetUserPassword", "cognito-idp:AdminUserGlobalSignOut");
     backendTask.taskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: ["cloudwatch:PutMetricData"],

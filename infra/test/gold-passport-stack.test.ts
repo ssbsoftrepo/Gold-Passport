@@ -139,17 +139,55 @@ for (const name of ["staging", "production"] as const) {
       template.hasResourceProperties("AWS::KMS::Key", { EnableKeyRotation: true });
     });
 
-    it("signs people in with SMS codes (passwordless Cognito)", () => {
+    it("signs people in with phone number + PIN, never by SMS", () => {
       template.hasResourceProperties("AWS::Cognito::UserPool", {
-        UserPoolTier: "ESSENTIALS",
+        UserPoolTier: "LITE",
         UsernameAttributes: ["phone_number"],
-        Policies: Match.objectLike({ SignInPolicy: { AllowedFirstAuthFactors: ["PASSWORD", "SMS_OTP"] } }),
+        Policies: Match.objectLike({
+          PasswordPolicy: Match.objectLike({
+            MinimumLength: 6,
+            RequireLowercase: false,
+            RequireUppercase: false,
+            RequireNumbers: false,
+            RequireSymbols: false,
+            TemporaryPasswordValidityDays: 7,
+          }),
+        }),
+        AccountRecoverySetting: { RecoveryMechanisms: [{ Name: "admin_only", Priority: 1 }] },
+        LambdaConfig: { PreSignUp: Match.anyValue() },
+        MfaConfiguration: "OFF",
+      });
+      const pool = Object.values(template.findResources("AWS::Cognito::UserPool"))[0].Properties;
+      assert.equal(pool.SmsConfiguration, undefined, "no SMS configuration");
+      assert.deepEqual(pool.AutoVerifiedAttributes ?? [], [], "no phone verification by SMS");
+      assert.equal(
+        Object.values(template.findResources("AWS::IAM::Role")).some((role) =>
+          JSON.stringify(role.Properties.AssumeRolePolicyDocument).includes("cognito-idp.amazonaws.com"),
+        ),
+        false,
+        "no role for Cognito to send SMS",
+      );
+      template.hasResourceProperties("AWS::Lambda::Function", {
+        Code: { ZipFile: Match.stringLikeRegexp("autoConfirmUser = true") },
       });
       template.hasResourceProperties("AWS::Cognito::UserPoolClient", {
         GenerateSecret: false,
-        ExplicitAuthFlows: ["ALLOW_USER_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
-        // The apps rely on UserNotFoundException to sign new phone numbers up.
-        PreventUserExistenceErrors: "LEGACY",
+        ExplicitAuthFlows: ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
+        PreventUserExistenceErrors: "ENABLED",
+      });
+    });
+
+    it("lets the backend reset a forgotten PIN and nothing more in Cognito", () => {
+      assert.ok(backendEnvironment(template).PMD_COGNITO_USER_POOL_ID, "the backend knows the user pool");
+      template.hasResourceProperties("AWS::IAM::Policy", {
+        PolicyDocument: {
+          Statement: Match.arrayWith([
+            Match.objectLike({
+              Action: ["cognito-idp:AdminSetUserPassword", "cognito-idp:AdminUserGlobalSignOut"],
+              Resource: { "Fn::GetAtt": [Match.stringLikeRegexp("^Users"), "Arn"] },
+            }),
+          ]),
+        },
       });
     });
 

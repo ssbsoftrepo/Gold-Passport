@@ -99,7 +99,7 @@ Ordered by priority.
 | What | Where |
 | --- | --- |
 | Backend settings, tolerances, adapters | `backend/src/main/resources/application.yml` (`pmd.*`) |
-| Local profile (demo data, fixed OTP) | `application-local.yml`, `db/dev/R__dev_seed.sql` |
+| Local profile (demo data, demo PINs) | `application-local.yml`, `db/dev/R__dev_seed.sql` |
 | Notification texts | `backend/src/main/resources/i18n/messages*.properties` |
 | Web texts | `apps/web/src/lib/i18n.tsx` |
 | Mobile texts | `apps/mobile/src/lib/i18n.tsx` |

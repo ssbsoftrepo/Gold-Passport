@@ -8,11 +8,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * {@code pmd.auth.*} settings.
  *
+ * <p>People sign in with their phone number and a 6-digit PIN (PMD staff: a password of 10+
+ * characters). No SMS is ever sent.
+ *
  * <ul>
- *   <li>{@code mode=local}: the backend issues its own HS256 JWTs after an SMS-style OTP (codes are
- *       logged, never sent). For laptops, CI and demos.</li>
- *   <li>{@code mode=cognito}: clients sign in with Amazon Cognito (passwordless SMS OTP) and send the
- *       Cognito ID token; the backend only validates it against the user pool issuer.</li>
+ *   <li>{@code mode=local}: the backend checks the PIN itself (BCrypt) and issues its own HS256 JWTs.
+ *       For laptops, CI and demos.</li>
+ *   <li>{@code mode=cognito}: clients sign in with Amazon Cognito (phone number + password) and send
+ *       the Cognito ID token; the backend validates it against the user pool issuer, and uses the
+ *       pool's admin API only to reset a forgotten PIN.</li>
  * </ul>
  */
 @ConfigurationProperties(prefix = "pmd.auth")
@@ -20,24 +24,29 @@ public record IdentityProperties(
         String mode,
         Local local,
         Cognito cognito,
+        /** How long a temporary PIN from a PMD reset can be used (the Cognito pool is set the same). */
+        Duration temporaryPinTtl,
         List<String> corsAllowedOrigins) {
 
     public boolean isLocal() {
         return mode == null || "local".equalsIgnoreCase(mode);
     }
 
+    public Duration temporaryPinTtlOrDefault() {
+        return temporaryPinTtl != null ? temporaryPinTtl : Duration.ofDays(7);
+    }
+
+    /**
+     * @param maxAttempts wrong PINs in a row before the account is locked for {@code lockout}
+     */
     public record Local(
             String issuer,
             String jwtSecret,
             Duration tokenTtl,
-            Duration otpTtl,
-            String fixedOtp,
-            boolean exposeCode,
             int maxAttempts,
-            int maxRequestsPerWindow,
-            Duration requestWindow) {
+            Duration lockout) {
     }
 
-    public record Cognito(String issuerUri, String region, String clientId) {
+    public record Cognito(String issuerUri, String region, String clientId, String userPoolId) {
     }
 }

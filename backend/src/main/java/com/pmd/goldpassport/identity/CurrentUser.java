@@ -8,7 +8,7 @@ import com.pmd.goldpassport.shared.Role;
 
 /**
  * The authenticated caller. Controllers declare it as a method parameter and it is resolved
- * from the validated JWT (local OTP token or Amazon Cognito token).
+ * from the validated JWT (local PIN sign-in token or Amazon Cognito token).
  *
  * @param role {@code null} until the user has chosen a role
  */

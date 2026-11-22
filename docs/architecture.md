@@ -14,15 +14,15 @@ flowchart LR
     API[Backend API<br/>Spring Boot modular monolith]
     DB[(PostgreSQL<br/>one schema per module)]
     FS[(Object storage<br/>local disk or S3)]
-    IDP[Identity<br/>local OTP or Amazon Cognito]
+    IDP[Identity<br/>local PIN check or Amazon Cognito]
     KYC[KYC checks<br/>stub or Amazon Rekognition]
     PUSH[Push<br/>log or Amazon SNS → FCM/APNs]
 
     MA -- REST + JWT --> API
     WA -- REST + JWT --> API
     PUB -- public REST --> API
-    MA -. SMS OTP .-> IDP
-    WA -. SMS OTP .-> IDP
+    MA -. phone + PIN .-> IDP
+    WA -. phone + PIN .-> IDP
     API --> DB
     API --> FS
     API -. validates JWT .-> IDP
@@ -46,7 +46,7 @@ enforced by `ModularityTest`:
 | Module | Owns | Public API | Depends on |
 | --- | --- | --- | --- |
 | `shared` | Roles, errors, `DomainEvent`, `GeoPoint`, validators, hashing, `Clock` | everything (shared kernel) | none |
-| `identity` | Users, OTP login, JWT validation, `CurrentUser` | `CurrentUser`, `UserAccounts` | shared |
+| `identity` | Users, phone + PIN sign-in, PMD PIN resets, JWT validation, `CurrentUser` | `CurrentUser`, `UserAccounts` | shared |
 | `storage` | Files (evidence, documents), content sniffing, SHA-256, access policies | `FileStorage`, `FileAccessPolicy`, `StoredFileInfo` | shared, identity |
 | `onboarding` | KYC applications, documents, automated checks, participant directory | `ParticipantDirectory`, `OnboardingEvent` | shared, identity, storage |
 | `relationships` | Commercial relationships and their review | `RelationshipQueries`, `RelationshipEvent` | shared, identity, onboarding |
@@ -167,7 +167,7 @@ Hikari fails a request that waits more than `DB_CONNECTION_TIMEOUT_MS` (10 s, be
 
 | Port | Local default | AWS implementation | Switch |
 | --- | --- | --- | --- |
-| Authentication | OTP logged + HS256 JWT (`pmd.auth.mode=local`) | Amazon Cognito user pool, passwordless SMS OTP | `PMD_AUTH_MODE=cognito`, `PMD_COGNITO_*` |
+| Authentication | Phone + PIN checked by the backend (BCrypt) + HS256 JWT (`pmd.auth.mode=local`) | Amazon Cognito user pool, phone + PIN as password, no SMS | `PMD_AUTH_MODE=cognito`, `PMD_COGNITO_*` |
 | `ObjectStore` | Local filesystem | Amazon S3 with SSE (KMS optional) | `PMD_STORAGE_PROVIDER=s3`, `PMD_S3_*` |
 | `IdentityVerifier` | Stub (always `NEEDS_REVIEW`) | Amazon Rekognition face compare + text detection | `PMD_KYC_PROVIDER=aws` |
 | `PushGateway` | Log | Amazon SNS mobile push (FCM / APNs) | `PMD_PUSH_PROVIDER=sns`, `PMD_SNS_*` |
@@ -184,7 +184,7 @@ reference each other by UUID only.
 
 | Schema | Tables |
 | --- | --- |
-| `identity` | `users`, `otp_challenges` |
+| `identity` | `users`, `local_credentials` (local mode only) |
 | `storage` | `files` |
 | `onboarding` | `applications`, `application_documents` |
 | `relationships` | `relationships` |
