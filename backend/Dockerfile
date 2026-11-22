@@ -2,7 +2,7 @@
 #   docker build -f backend/Dockerfile -t pmd/gold-passport-backend .
 # Images are multi-arch, so this also builds for AWS Graviton (arm64).
 
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /src
 COPY api/openapi.yaml api/openapi.yaml
 COPY backend/pom.xml backend/pom.xml
