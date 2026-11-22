@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { router } from "expo-router";
 import { View } from "react-native";
 import { Body, Button, ErrorNotice, ListItem, Muted, Notice, Screen, StatusTag } from "@/components/ui";
@@ -7,13 +8,15 @@ import { useI18n } from "@/lib/i18n";
 import { space } from "@/lib/theme";
 
 /** Relationships the transporter registered (validated by PMD) or was added to by a plant. */
-export default function Partners() {
+export default gated("transport", Partners);
+
+function Partners() {
   const { t } = useI18n();
-  const { data, error, loading, reload } = useScreenData(() => call(api.GET("/api/v1/relationships")));
+  const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/relationships")), "relationships");
   return (
     <Screen title={t("partners.title")} refreshing={loading} onRefresh={reload}>
       <Button label={t("partners.add")} onPress={() => router.push("/partner/new")} />
-      <ErrorNotice error={error} />
+      <ErrorNotice error={error} staleSince={staleSince} />
       {data && data.length === 0 && <Notice>{t("partners.empty")}</Notice>}
       {data?.map((r) => {
         const mine = r.ownerRole === "TRANSPORTER";

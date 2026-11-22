@@ -28,19 +28,3 @@ reason = """\
   (@expo/fingerprint, typescript-eslint, eslint-config-next, and aws-cdk-lib when it synthesizes \
   infra/) with patterns from our own config. Never runs in the apps or the server. Fixed only in \
   minimatch 11; aws-cdk-lib 2.278.0 bundles it. Revisit with the next Expo SDK and Next.js release."""
-
-[[IgnoredVulns]]
-id = "GHSA-j9f9-w8pj-32f8"
-ignoreUntil = 2027-01-26
-reason = """\
-  Spring Framework 6.2 (CVE-2026-47890): stream corruption with Server-Sent Events rendering view \
-  fragments. The backend is a JSON API (@RestController only) with no SSE and no view rendering. No \
-  open-source 6.2 fix; fixed in Spring Framework 7.0.9, which comes with the Spring Boot 4 upgrade."""
-
-[[IgnoredVulns]]
-id = "GHSA-pc63-qcmh-9cmg"
-ignoreUntil = 2027-01-26
-reason = """\
-  Spring Framework 6.2 (CVE-2026-47884): path limitation in XsltView. The backend uses no XsltView \
-  and renders no views. No open-source 6.2 fix; fixed in Spring Framework 7.0.9, which comes with \
-  the Spring Boot 4 upgrade."""

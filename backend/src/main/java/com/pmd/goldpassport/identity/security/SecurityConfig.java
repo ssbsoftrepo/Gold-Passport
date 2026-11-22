@@ -85,7 +85,7 @@ class SecurityConfig {
         List<String> origins = props.corsAllowedOrigins() == null ? List.of() : props.corsAllowedOrigins();
         cors.setAllowedOriginPatterns(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept-Language"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept-Language", "Idempotency-Key"));
         cors.setExposedHeaders(List.of("Content-Disposition"));
         cors.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

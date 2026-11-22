@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
@@ -13,12 +14,15 @@ import { useOutbox } from "@/lib/outbox";
 import { space, type } from "@/lib/theme";
 
 /** Miner's lote: extraction photos with GPS (works offline), close, then declare the lab assay. */
-export default function LotDetail() {
+export default gated("batches", LotDetail);
+
+function LotDetail() {
   const { lotId } = useLocalSearchParams<{ lotId: string }>();
   const { t, locale } = useI18n();
   const outbox = useOutbox();
-  const { data: lot, error, loading, reload, setData } = useScreenData(() =>
-    call(api.GET("/api/v1/lots/{lotId}", { params: { path: { lotId } } })),
+  const { data: lot, error, loading, reload, setData, staleSince } = useScreenData(
+    () => call(api.GET("/api/v1/lots/{lotId}", { params: { path: { lotId } } })),
+    `lot:${lotId}`,
   );
   const action = useAction();
   const [queued, setQueued] = useState(false);
@@ -78,7 +82,7 @@ export default function LotDetail() {
         <StatusTag status={lot.status} />
         <Muted>{t("lot.passportHint")}</Muted>
       </View>
-      <ErrorNotice error={action.error} />
+      <ErrorNotice error={action.error ?? error} staleSince={action.error ? null : staleSince} />
       {queued && <Notice kind="wait">{t("common.offlineSaved")}</Notice>}
       <PendingBanner scope={`lot:${lot.id}`} />
 

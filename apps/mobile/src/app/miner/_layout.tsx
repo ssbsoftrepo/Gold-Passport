@@ -5,9 +5,9 @@ export default function MinerLayout() {
     <RoleTabs
       role="MINER"
       tabs={[
-        { name: "index", titleKey: "tabs.lots" },
-        { name: "transports", titleKey: "tabs.transports" },
-        { name: "payments", titleKey: "tabs.payments" },
+        { name: "index", titleKey: "tabs.lots", feature: "batches" },
+        { name: "transports", titleKey: "tabs.transports", feature: "transport" },
+        { name: "payments", titleKey: "tabs.payments", feature: "plantFlow" },
         { name: "inbox", titleKey: "tabs.inbox" },
         { name: "profile", titleKey: "tabs.profile" },
       ]}

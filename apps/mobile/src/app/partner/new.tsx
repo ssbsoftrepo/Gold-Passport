@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Button, Choice, ErrorNotice, Field, Screen, Section } from "@/components/ui";
@@ -6,7 +7,9 @@ import { useAction } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 
 /** Transporter registers a Miner or Collector/Plant; PMD validates the relationship. */
-export default function NewPartner() {
+export default gated("transport", NewPartner);
+
+function NewPartner() {
   const { t } = useI18n();
   const action = useAction();
   const [form, setForm] = useState({
