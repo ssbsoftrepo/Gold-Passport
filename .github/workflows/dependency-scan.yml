@@ -1,0 +1,36 @@
+name: Dependency scan
+
+# Known vulnerabilities in the web, mobile and backend dependencies (npm lockfiles and the Maven
+# build), checked against the OSV database, which includes GitHub's security advisories.
+# Runs on every pull request, on main, and weekly: new advisories appear without code changes.
+# Accepted findings, each with a reason and an expiry date, are in osv-scanner.toml
+# (docs/security.md#dependency-vulnerabilities).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 01:17 in Peru
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  osv:
+    name: Known vulnerabilities (OSV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --config=osv-scanner.toml
+            --format=table
+            --recursive
+            ./
