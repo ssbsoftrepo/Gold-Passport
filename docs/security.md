@@ -89,8 +89,15 @@ documents, GPS coordinates, payment amounts and references.
   the same npm findings.
 - **Updates:** Dependabot (`.github/dependabot.yml`) opens weekly pull requests with minor and
   patch updates, one per app, plus GitHub Actions and the Docker base images. Major upgrades (an
-  Expo SDK, Spring Boot, Next.js) are planned work and are left out. In the repository settings,
-  under *Code security*, also turn on **Dependabot alerts** and **Dependabot security updates**.
+  Expo SDK, Spring Boot, Next.js) are planned work and are left out. Two more are left to people:
+  - the packages Expo pins to the SDK (`expo`, `expo-*`, `react`, `react-native`, `react-native-*`,
+    `@sentry/react-native` and similar): update them together with
+    `npx expo install expo@~<version> --fix` in `apps/mobile`, then run the mobile checks;
+  - the Java and Node.js versions in the Dockerfiles (the `maven` tag names the JDK; stay on an
+    LTS release).
+
+  In the repository settings, under *Code security*, also turn on **Dependabot alerts** and
+  **Dependabot security updates**.
 
 When the scan fails:
 
