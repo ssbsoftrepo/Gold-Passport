@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import { useOutbox } from "@/lib/outbox";
 import { useSession } from "@/lib/session";
 import { space } from "@/lib/theme";
+import { ChangePin } from "./ChangePin";
 import { Body, Button, Choice, ErrorNotice, ListItem, Muted, Notice, Row, Screen, Section } from "./ui";
 
 export function InboxScreen() {
@@ -61,6 +62,7 @@ export function ProfileScreen() {
         <Row label={t("login.phone")} value={user?.phone ?? "—"} />
         <Row label={t("profile.role")} value={user?.role ? t(`role.${user.role}`) : "—"} />
       </Section>
+      {user && <ChangePin phone={user.phone} />}
       {isEnabled("english") && (
         <Section>
           <Choice label={t("profile.language")} value={locale}

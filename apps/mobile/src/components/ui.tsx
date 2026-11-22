@@ -92,7 +92,7 @@ export function Field({ label, ...props }: { label: string } & TextInputProps) {
   return (
     <View style={{ gap: space.xs }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor={colors.inkFaint} style={styles.input} {...props} />
+      <TextInput placeholderTextColor={colors.inkFaint} style={styles.input} accessibilityLabel={label} {...props} />
     </View>
   );
 }
