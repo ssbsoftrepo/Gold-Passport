@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocales } from "expo-localization";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { isNetworkError } from "./api";
+import { isEnabled } from "./features";
 
 /** Spanish first (field users), English second. `{name}` placeholders are replaced from params. */
 
@@ -23,12 +24,16 @@ const es = {
   "common.grams": "{value} g",
   "common.percent": "{value} %",
 
+  "tabs.home": "Inicio",
   "tabs.lots": "Lotes",
   "tabs.transports": "Transportes",
   "tabs.payments": "Pagos",
   "tabs.inbox": "Avisos",
   "tabs.profile": "Perfil",
   "tabs.partners": "Socios",
+  "soon.title": "Tu cuenta está aprobada",
+  "soon.body": "Pronto podrás registrar tus lotes y transportes desde aquí. Te avisaremos en Avisos cuando esté disponible.",
+  "soon.notYet": "Esta función aún no está disponible.",
 
   "role.MINER": "Minero",
   "role.TRANSPORTER": "Transportista",
@@ -261,12 +266,16 @@ const en: Partial<Record<MessageKey, string>> = {
   "common.offlineSaved": "Offline: saved and will be sent when the signal returns.",
   "common.offlineBar": "No internet. Keep working: everything will be sent when the signal returns.",
   "common.showingSaved": "No connection or weak signal. Showing what was saved on {time}.",
+  "tabs.home": "Home",
   "tabs.lots": "Lots",
   "tabs.transports": "Transports",
   "tabs.payments": "Payments",
   "tabs.inbox": "Inbox",
   "tabs.profile": "Profile",
   "tabs.partners": "Partners",
+  "soon.title": "Your account is approved",
+  "soon.body": "Soon you will record your batches and trips here. We will let you know in Inbox when it is available.",
+  "soon.notYet": "This feature is not available yet.",
   "role.MINER": "Miner",
   "role.TRANSPORTER": "Transporter",
   "role.COLLECTOR": "Collector / Plant",
@@ -491,6 +500,7 @@ const Ctx = createContext<I18n | null>(null);
 const KEY = "pmd.locale";
 
 function deviceLocale(): Locale {
+  if (!isEnabled("english")) return "es";
   return getLocales()[0]?.languageCode === "en" ? "en" : "es";
 }
 
@@ -499,7 +509,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((v) => {
-      if (v === "es" || v === "en") setLocaleState(v);
+      if (v === "es" || (v === "en" && isEnabled("english"))) setLocaleState(v);
     });
   }, []);
 
