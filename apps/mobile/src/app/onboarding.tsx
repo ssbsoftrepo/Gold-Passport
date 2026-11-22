@@ -6,6 +6,7 @@ import { api, call, uploadMultipart, type Schemas } from "@/lib/api";
 import { DOCUMENT_PHOTO_MAX_EDGE, takePhoto } from "@/lib/capture";
 import { useAction } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
+import { onboardingTag } from "@/lib/onboardingStatus";
 import { useSession } from "@/lib/session";
 import { space } from "@/lib/theme";
 
@@ -79,7 +80,7 @@ function OnboardingForm({ initial }: { initial: Application }) {
 
   return (
     <Screen title={t("onb.title")} subtitle={t("onb.subtitle")}>
-      <StatusTag status={app.status === "SUBMITTED" ? "PENDING_REVIEW" : app.status === "CORRECTIONS_REQUESTED" ? "CLARIFICATION_REQUESTED" : app.status} />
+      <StatusTag status={onboardingTag(app.status)} />
       <Notice kind={statusKind}>
         <Body>
           {t(`onb.status.${app.status}`)} {app.reviewNotes && (app.status === "CORRECTIONS_REQUESTED" || app.status === "REJECTED") ? app.reviewNotes : ""}

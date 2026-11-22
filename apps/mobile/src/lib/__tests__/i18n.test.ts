@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { messages, translate } from "../i18n";
+import { ONBOARDING_STATUSES, onboardingTag } from "../onboardingStatus";
 
 /** Texts that read the same in both languages, so English falls back to the Spanish text. */
 const SAME_IN_BOTH = new Set(["common.grams", "common.percent", "role.ADMIN"]);
@@ -44,4 +45,11 @@ it("fills placeholders and falls back to Spanish, then to the key", () => {
   expect(translate("en", "common.grams", { value: 150 })).toBe("150 g");
   expect(translate("es", "common.showingSaved", { time: "07:00" })).toContain("07:00");
   expect(translate("en", "no.such.key")).toBe("no.such.key");
+});
+
+it("labels every onboarding status in both languages", () => {
+  // Status tags build their key at run time (`status.${status}`), so the check above can't see them.
+  const keys = ONBOARDING_STATUSES.map((s) => `status.${onboardingTag(s)}`);
+  expect(keys.filter((k) => !(k in es))).toEqual([]);
+  expect(keys.filter((k) => !(k in en))).toEqual([]);
 });
