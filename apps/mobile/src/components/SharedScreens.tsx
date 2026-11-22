@@ -1,7 +1,8 @@
 import { router } from "expo-router";
-import { View } from "react-native";
+import { Share, View } from "react-native";
 import { api, call } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { fieldReport } from "@/lib/fieldLog";
 import { useAction, useScreenData } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 import { useOutbox } from "@/lib/outbox";
@@ -37,6 +38,15 @@ export function ProfileScreen() {
   const { user, signOut } = useSession();
   const { items, syncing, needsSignIn, syncNow, discard } = useOutbox();
   const waiting = items.some((i) => !i.error);
+
+  const report = useAction();
+
+  /** Shares the field report through any app on the phone (WhatsApp, email…), for trials and support. */
+  const sendFieldReport = () =>
+    report.run(async () => {
+      const content = await fieldReport(items);
+      await Share.share({ title: t("profile.fieldReport"), message: JSON.stringify(content) });
+    });
 
   const changeLocale = (l: "es" | "en") => {
     setLocale(l);
@@ -74,6 +84,11 @@ export function ProfileScreen() {
           ))
         )}
         {items.length > 0 && <Button label={t("profile.syncNow")} onPress={syncNow} busy={syncing} />}
+      </Section>
+      <Section title={t("profile.fieldReport")}>
+        <Muted>{t("profile.fieldReportHelp")}</Muted>
+        <ErrorNotice error={report.error} />
+        <Button label={t("profile.sendFieldReport")} variant="quiet" onPress={sendFieldReport} busy={report.pending} />
       </Section>
       <Button label={t("profile.signOut")} variant="quiet" onPress={() => signOut().then(() => router.replace("/login"))} />
     </Screen>
