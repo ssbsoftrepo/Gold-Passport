@@ -29,6 +29,8 @@ type Session = {
   signIn: (token: string, cognito?: CognitoRefresh) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Replaces the application after a change made on this phone (kept for offline start-up too). */
+  updateOnboarding: (app: Application) => void;
 };
 
 const Ctx = createContext<Session | null>(null);
@@ -45,9 +47,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const app = me.role === "MINER" || me.role === "TRANSPORTER" ? await call(api.GET("/api/v1/onboarding/me")) : null;
     setOnboarding(app);
     setStatus("authenticated");
-    // Cached so the app opens offline at the mine, where there is often no signal.
-    void AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ user: me, onboarding: app }));
   }, []);
+
+  // Cached so the app opens offline at the mine, where there is often no signal. Rewritten on every
+  // change (not only at sign-in), so a restart never brings back an older copy of the application.
+  useEffect(() => {
+    if (status !== "authenticated" || !user) return;
+    void AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ user, onboarding })).catch(() => undefined);
+  }, [status, user, onboarding]);
+
+  const updateOnboarding = useCallback((app: Application) => setOnboarding(app), []);
 
   const signOut = useCallback(async () => {
     const saved = await readCognitoRefresh().catch(() => null);
@@ -114,8 +123,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [refresh, signOut]);
 
   const value = useMemo<Session>(
-    () => ({ status, user, onboarding, signIn, signOut, refresh }),
-    [status, user, onboarding, signIn, signOut, refresh],
+    () => ({ status, user, onboarding, signIn, signOut, refresh, updateOnboarding }),
+    [status, user, onboarding, signIn, signOut, refresh, updateOnboarding],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

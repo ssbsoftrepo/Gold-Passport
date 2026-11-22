@@ -17,22 +17,33 @@ type DocKind = Schemas["DocumentKind"];
 export default function Onboarding() {
   const { onboarding, user } = useSession();
   if (!onboarding || !user) return <Screen><Muted>…</Muted></Screen>;
-  return <OnboardingForm key={onboarding.id} initial={onboarding} />;
+  return <OnboardingForm key={onboarding.id} app={onboarding} />;
 }
 
-function OnboardingForm({ initial }: { initial: Application }) {
+const formFrom = (app: Application) => ({
+  fullName: app.fullName ?? "",
+  documentType: (app.documentType ?? "DNI") as "DNI" | "CE" | "PASSPORT",
+  documentNumber: app.documentNumber ?? "",
+  email: app.email ?? "",
+  driverLicenseNumber: app.driverLicenseNumber ?? "",
+  vehiclePlate: app.vehiclePlate ?? "",
+});
+
+function OnboardingForm({ app }: { app: Application }) {
   const { t } = useI18n();
-  const { refresh, signOut } = useSession();
-  const [app, setApp] = useState(initial);
-  const [form, setForm] = useState({
-    fullName: initial.fullName ?? "",
-    documentType: (initial.documentType ?? "DNI") as "DNI" | "CE" | "PASSPORT",
-    documentNumber: initial.documentNumber ?? "",
-    email: initial.email ?? "",
-    driverLicenseNumber: initial.driverLicenseNumber ?? "",
-    vehiclePlate: initial.vehiclePlate ?? "",
-  });
+  const { refresh, signOut, updateOnboarding } = useSession();
+  // The person's edits, if any. Until they type, the fields show the application as it is now: the app
+  // opens from the copy saved on the phone, and the server's newer copy can arrive a moment later.
+  const [draft, setDraft] = useState<ReturnType<typeof formFrom> | null>(null);
+  const form = draft ?? formFrom(app);
+  const setForm = setDraft;
   const action = useAction();
+
+  /** A new copy of the application from the server: shown at once, and kept for offline start-up. */
+  const update = (latest: Application, saved = false) => {
+    updateOnboarding(latest);
+    if (saved) setDraft(null);
+  };
 
   const editable = app.status === "DRAFT" || app.status === "CORRECTIONS_REQUESTED";
   const isTransporter = app.role === "TRANSPORTER";
@@ -47,7 +58,7 @@ function OnboardingForm({ initial }: { initial: Application }) {
     ...(isTransporter ? { driverLicenseNumber: form.driverLicenseNumber, vehiclePlate: form.vehiclePlate } : {}),
   });
 
-  const save = () => action.run(async () => setApp(await call(api.PUT("/api/v1/onboarding/me", { body: body() }))));
+  const save = () => action.run(async () => update(await call(api.PUT("/api/v1/onboarding/me", { body: body() })), true));
 
   const capture = (kind: DocKind) =>
     action.run(async () => {
@@ -57,19 +68,20 @@ function OnboardingForm({ initial }: { initial: Application }) {
       );
       if (!photo) return;
       await uploadMultipart("/api/v1/onboarding/me/documents", photo, { kind });
-      setApp(await call(api.GET("/api/v1/onboarding/me")));
+      update(await call(api.GET("/api/v1/onboarding/me")));
     });
 
   const submit = () =>
     action.run(async () => {
-      await call(api.PUT("/api/v1/onboarding/me", { body: body() }));
-      setApp(await call(api.POST("/api/v1/onboarding/me/submit")));
+      // Only what the person typed is sent again; untouched fields are already on the server.
+      if (draft) update(await call(api.PUT("/api/v1/onboarding/me", { body: body() })), true);
+      update(await call(api.POST("/api/v1/onboarding/me/submit")));
     });
 
   const recheck = () =>
     action.run(async () => {
       const latest = await call(api.GET("/api/v1/onboarding/me"));
-      setApp(latest);
+      update(latest);
       if (latest.status === "APPROVED") {
         await refresh();
         router.replace("/");
