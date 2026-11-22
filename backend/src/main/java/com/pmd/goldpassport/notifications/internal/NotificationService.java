@@ -2,6 +2,7 @@ package com.pmd.goldpassport.notifications.internal;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,7 +16,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -38,9 +41,11 @@ public class NotificationService {
     private final UserAccounts users;
     private final ObjectMapper json;
     private final Clock clock;
+    private final TransactionTemplate tx;
 
     public NotificationService(NotificationRepository notifications, DeviceTokenRepository devices, PushGateway push,
-            MessageSource messages, UserAccounts users, ObjectMapper json, Clock clock) {
+            MessageSource messages, UserAccounts users, ObjectMapper json, Clock clock,
+            PlatformTransactionManager transactions) {
         this.notifications = notifications;
         this.devices = devices;
         this.push = push;
@@ -48,16 +53,36 @@ public class NotificationService {
         this.users = users;
         this.json = json;
         this.clock = clock;
+        this.tx = new TransactionTemplate(transactions);
+    }
+
+    private record Push(UUID userId, DeviceToken device, String title, String body) {
     }
 
     /**
      * Creates an inbox entry per recipient (in their language) and attempts a push.
      *
+     * <p>Not {@code @Transactional}: the inbox entries are saved in a short transaction and the push
+     * notifications are sent after it, so no pooled database connection waits on Amazon SNS. Call it
+     * outside a transaction (the notification listeners do).
+     *
      * @param type e.g. {@code transport.REQUESTED}; message keys are {@code notification.<type>.title|body}
      * @param args message arguments: {0} lot code, {1} transport code, {2} extra (reason, amount...)
      */
-    @Transactional
     public void notify(Collection<UUID> recipients, String type, Object[] args, Map<String, String> data) {
+        List<Push> pushes = tx.execute(status -> saveInbox(recipients, type, args, data));
+        for (Push p : pushes) {
+            DeviceToken d = p.device();
+            try {
+                push.send(d.getToken(), d.getPlatform(), d.getEndpointArn(), p.title(), p.body(), data);
+            } catch (RuntimeException e) {
+                log.warn("Push delivery failed for user {}: {}", p.userId(), e.getMessage());
+            }
+        }
+    }
+
+    private List<Push> saveInbox(Collection<UUID> recipients, String type, Object[] args, Map<String, String> data) {
+        List<Push> pushes = new ArrayList<>();
         Set<UUID> unique = new LinkedHashSet<>();
         for (UUID r : recipients) {
             if (r != null) {
@@ -72,13 +97,10 @@ public class NotificationService {
             String body = messages.getMessage("notification." + type + ".body", args, type, locale);
             notifications.save(Notification.of(userId, type, title, body, dataJson, now));
             for (DeviceToken d : devices.findByUserId(userId)) {
-                try {
-                    push.send(d.getToken(), d.getPlatform(), d.getEndpointArn(), title, body, data);
-                } catch (RuntimeException e) {
-                    log.warn("Push delivery failed for user {}: {}", userId, e.getMessage());
-                }
+                pushes.add(new Push(userId, d, title, body));
             }
         }
+        return pushes;
     }
 
     @Transactional(readOnly = true)
@@ -101,13 +123,15 @@ public class NotificationService {
         notifications.markAllRead(me.userId(), Instant.now(clock));
     }
 
-    @Transactional
+    /** Not {@code @Transactional}: registers with Amazon SNS first, then saves the device in a short transaction. */
     public void registerDevice(CurrentUser me, String token, String platform) {
-        Instant now = Instant.now(clock);
         String endpoint = push.register(token, platform);
-        devices.findByToken(token).ifPresentOrElse(
-                d -> d.reassign(me.userId(), platform, endpoint, now),
-                () -> devices.save(DeviceToken.of(me.userId(), token, platform, endpoint, now)));
+        tx.executeWithoutResult(status -> {
+            Instant now = Instant.now(clock);
+            devices.findByToken(token).ifPresentOrElse(
+                    d -> d.reassign(me.userId(), platform, endpoint, now),
+                    () -> devices.save(DeviceToken.of(me.userId(), token, platform, endpoint, now)));
+        });
     }
 
     @Transactional
