@@ -1,0 +1,73 @@
+# One-click deployment to AWS (docs/deploy.md).
+# GitHub -> Actions -> "Deploy" -> Run workflow -> pick staging or production.
+# Builds both Docker images and creates or updates the whole environment with AWS CDK (infra/).
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC: AWS credentials without stored keys
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false # never stop a deployment halfway
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      TARGET: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'sa-east-1' }}
+      # Optional settings, as GitHub environment variables (docs/deploy.md).
+      PMD_SNS_ANDROID_ARN: ${{ vars.PMD_SNS_ANDROID_ARN }}
+      PMD_SNS_IOS_ARN: ${{ vars.PMD_SNS_IOS_ARN }}
+      NEXT_PUBLIC_SENTRY_DSN: ${{ vars.WEB_SENTRY_DSN }}
+    steps:
+      - name: Check the one-time setup
+        if: vars.AWS_DEPLOY_ROLE_ARN == ''
+        run: |
+          echo "::error::The GitHub environment '$TARGET' has no AWS_DEPLOY_ROLE_ARN variable. Follow the one-time setup in docs/deploy.md."
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gold-passport-deploy-${{ github.run_id }}
+          role-duration-seconds: 7200
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install
+        working-directory: infra
+        run: npm ci
+      - name: Deploy
+        id: deploy
+        working-directory: infra
+        run: |
+          npx cdk deploy "GoldPassport-$TARGET" --require-approval never --progress events --outputs-file outputs.json
+          url=$(node -e 'const o=require("./outputs.json"); console.log(o[`GoldPassport-${process.env.TARGET}`].Url)')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Summary
+        working-directory: infra
+        run: |
+          node -e '
+            const o = require("./outputs.json")[`GoldPassport-${process.env.TARGET}`];
+            const rows = Object.entries(o).map(([k, v]) => `| ${k} | \`${v}\` |`).join("\n");
+            console.log(`### Gold Passport ${process.env.TARGET} is live\n\nOpen ${o.Url}\n\n| Output | Value |\n| --- | --- |\n${rows}`);
+          ' >> "$GITHUB_STEP_SUMMARY"
