@@ -57,6 +57,7 @@ enforced by `ModularityTest`:
 | `notifications` | Inbox, device tokens, push delivery | none (event listener) | identity + every module's events |
 | `audit` | Hash-chained custody ledger | `LedgerQueries` | shared |
 | `passport` | Ledger endpoint and public passport | none (web only) | lots, audit |
+| `monitoring` | Metrics: AWS calls, stuck events, field sync delay; CloudWatch export ([monitoring.md](monitoring.md)) | `FieldSync` | shared |
 
 ```mermaid
 flowchart BT
@@ -77,6 +78,8 @@ flowchart BT
     audit -. DomainEvent .-> shared
     passport --> lots
     passport --> audit
+    lots --> monitoring
+    transport --> monitoring
 ```
 
 Running `mvn verify` also writes PlantUML diagrams of the actual module graph to
