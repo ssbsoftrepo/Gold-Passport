@@ -50,7 +50,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "api:generate": "openapi-typescript ../../api/openapi.yaml -o src/api/schema.d.ts"
+    "api:generate": "npx --yes openapi-typescript@7.13.0 ../../api/openapi.yaml -o src/api/schema.d.ts"
   },
   "private": true
 }
