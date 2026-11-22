@@ -8,7 +8,7 @@ first weeks.
 A working end-to-end implementation of the four PMD flows (Miner, Transport, Collector/Plant, gold
 purity pipeline):
 
-- **Backend** (`backend/`): Spring Boot 3.5 modular monolith with 12 modules, 71 REST endpoints,
+- **Backend** (`backend/`): Spring Boot 4.1 modular monolith with 12 modules, 71 REST endpoints,
   PostgreSQL schema per module (Flyway), hash-chained custody ledger, async notifications with a
   durable outbox, AWS adapters (Cognito, S3, Rekognition, SNS) with local stubs, demo data.
 - **Web** (`apps/web/`): PMD back office (identity checks, relationships, lots, transports, lab
@@ -30,8 +30,8 @@ Be precise about this when planning the first sprint.
 | --- | --- | --- |
 | API contract | ✅ | Redocly lint passes |
 | Database migrations and seed | ✅ | Applied to PostgreSQL 16 |
-| Web app | ✅ | Type check, ESLint and `next build` pass; screens reviewed against a mock API |
-| Mobile app | ✅ (static) | Type check and ESLint pass; Android JS bundle exports; login screen rendered via web export. Not yet run on a device |
+| Web app | ✅ | Type check, ESLint, unit and component tests (Vitest) and `next build` pass; screens reviewed against a mock API |
+| Mobile app | ✅ (no device yet) | Type check, ESLint and unit tests (Jest; offline outbox, API, cache) pass; Android JS bundle exports; login screen rendered via web export. Not yet run on a device |
 | Contract ↔ backend endpoints | ✅ | All 71 operations match (scripted check; `ApiContractTest` enforces it in CI) |
 | Contract ↔ backend DTO field names | ✅ | Scripted comparison of every schema with its Java record |
 | Backend Java syntax and internal references | ✅ | `javac` parse check and cross-reference check of the project's own types |
@@ -62,12 +62,13 @@ Ordered by priority.
 
 1. Backend: first `mvn verify`, fix compile/wiring issues, run the demo walkthrough end to end with
    the web and mobile apps on an emulator.
-2. Upgrade path: Spring Boot 3.5 open-source support ends around mid-2026; plan Spring Boot 4 /
-   Spring Modulith 2 (Jackson 3, moved test annotations). Add the Maven wrapper (`mvn -N wrapper:wrapper`).
-3. Infrastructure as code (CDK or Terraform) for the architecture in deployment-aws.md; a staging
-   environment with Cognito, S3 and SNS; validate the Cognito passwordless flow in both apps.
-4. Mobile: development build on real Android phones used in the field (low-end devices, poor
-   signal); validate the offline outbox, camera and GPS accuracy at a real mine site.
+2. ~~Upgrade path to Spring Boot 4 / Spring Modulith 2~~ done (ADR-007). Still to do: add the
+   Maven wrapper (`mvn -N wrapper:wrapper`).
+3. Deploy staging with the one-click workflow (deploy.md: AWS CDK in `infra/`); add SNS push;
+   validate the Cognito passwordless flow in both apps.
+4. Mobile: field trial on real phones at a real mine (low-end devices, poor signal): offline outbox,
+   camera and GPS accuracy. Follow [field-trial.md](field-trial.md); testers send what happened
+   from Profile → Field report.
 
 **Before pilot**
 
@@ -77,7 +78,9 @@ Ordered by priority.
    onboarding.
 7. Device integrity (Play Integrity / App Attest) on evidence uploads.
 8. Legal: privacy notice and consent (Ley 29733), evidence retention period, terms for plants.
-9. Observability: structured logs, CloudWatch alarms, a dashboard of lots by status.
+9. Observability: server metrics, CloudWatch alarms and a dashboard are in place
+   ([monitoring.md](monitoring.md)); still to do: crash reporting in the apps, an outside uptime
+   check of the public passport, and a business dashboard of lots by status.
 
 **Product questions to confirm with the business**
 
@@ -86,6 +89,8 @@ Ordered by priority.
 - Is the plant's lab always the reference for payment (today), or an average / third-party lab?
 - Should the minimum number of extraction photos per lot be higher than 1
   (`pmd.lots.min-photos`)?
+- Is 1600 px on the longest side (2048 px for ID documents) enough detail for evidence photos?
+  (`PHOTO_MAX_EDGE` in `apps/mobile/src/lib/capture.ts`; larger means slower uploads on weak signal.)
 - Is a lot always transported whole, or can it be split across transports?
 - What is the location-mismatch threshold that should alert PMD (today 5 km)?
 

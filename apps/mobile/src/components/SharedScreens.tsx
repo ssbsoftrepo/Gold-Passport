@@ -1,7 +1,9 @@
 import { router } from "expo-router";
-import { View } from "react-native";
+import { Share, View } from "react-native";
 import { api, call } from "@/lib/api";
+import { isEnabled } from "@/lib/features";
 import { formatDateTime } from "@/lib/format";
+import { fieldReport } from "@/lib/fieldLog";
 import { useAction, useScreenData } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 import { useOutbox } from "@/lib/outbox";
@@ -11,11 +13,11 @@ import { Body, Button, Choice, ErrorNotice, ListItem, Muted, Notice, Row, Screen
 
 export function InboxScreen() {
   const { t, locale } = useI18n();
-  const { data, error, loading, reload } = useScreenData(() => call(api.GET("/api/v1/notifications", {})));
+  const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/notifications", {})), "notifications");
   const action = useAction();
   return (
     <Screen title={t("inbox.title")} refreshing={loading} onRefresh={reload}>
-      <ErrorNotice error={error ?? action.error} />
+      <ErrorNotice error={error ?? action.error} staleSince={error ? staleSince : null} />
       {data && data.length === 0 && <Notice>{t("inbox.empty")}</Notice>}
       {data && data.some((n) => !n.read) && (
         <Button label={t("inbox.markAll")} variant="quiet"
@@ -35,7 +37,17 @@ export function InboxScreen() {
 export function ProfileScreen() {
   const { t, locale, setLocale } = useI18n();
   const { user, signOut } = useSession();
-  const { items, syncing, syncNow, discard } = useOutbox();
+  const { items, syncing, needsSignIn, syncNow, discard } = useOutbox();
+  const waiting = items.some((i) => !i.error);
+
+  const report = useAction();
+
+  /** Shares the field report through any app on the phone (WhatsApp, email…), for trials and support. */
+  const sendFieldReport = () =>
+    report.run(async () => {
+      const content = await fieldReport(items);
+      await Share.share({ title: t("profile.fieldReport"), message: JSON.stringify(content) });
+    });
 
   const changeLocale = (l: "es" | "en") => {
     setLocale(l);
@@ -49,29 +61,42 @@ export function ProfileScreen() {
         <Row label={t("login.phone")} value={user?.phone ?? "—"} />
         <Row label={t("profile.role")} value={user?.role ? t(`role.${user.role}`) : "—"} />
       </Section>
-      <Section>
-        <Choice label={t("profile.language")} value={locale}
-          options={[{ value: "es", label: "Español" }, { value: "en", label: "English" }]} onChange={changeLocale} />
-      </Section>
-      <Section title={t("profile.outbox")}>
-        {items.length === 0 ? (
-          <Muted>{t("profile.outboxEmpty")}</Muted>
-        ) : (
-          items.map((i) => (
-            <View key={i.id} style={{ gap: space.xs }}>
-              <Body>{i.label}</Body>
-              <Muted>{formatDateTime(i.createdAt, locale)}</Muted>
-              {i.error && (
-                <>
-                  <Notice kind="bad">{t("profile.failed", { error: i.error })}</Notice>
-                  <Button label={t("profile.discard")} variant="danger" onPress={() => discard(i.id)} />
-                </>
-              )}
-            </View>
-          ))
-        )}
-        {items.length > 0 && <Button label={t("profile.syncNow")} onPress={syncNow} busy={syncing} />}
-      </Section>
+      {isEnabled("english") && (
+        <Section>
+          <Choice label={t("profile.language")} value={locale}
+            options={[{ value: "es", label: "Español" }, { value: "en", label: "English" }]} onChange={changeLocale} />
+        </Section>
+      )}
+      {(isEnabled("batches") || isEnabled("transport")) && (
+        <Section title={t("profile.outbox")}>
+          {needsSignIn && <Notice kind="bad">{t("profile.signInToSend")}</Notice>}
+          {waiting && !needsSignIn && !syncing && <Muted>{t("profile.waitingForSignal")}</Muted>}
+          {items.length === 0 ? (
+            <Muted>{t("profile.outboxEmpty")}</Muted>
+          ) : (
+            items.map((i) => (
+              <View key={i.id} style={{ gap: space.xs }}>
+                <Body>{i.label}</Body>
+                <Muted>{formatDateTime(i.createdAt, locale)}</Muted>
+                {i.error && (
+                  <>
+                    <Notice kind="bad">{t("profile.failed", { error: i.error })}</Notice>
+                    <Button label={t("profile.discard")} variant="danger" onPress={() => discard(i.id)} />
+                  </>
+                )}
+              </View>
+            ))
+          )}
+          {items.length > 0 && <Button label={t("profile.syncNow")} onPress={syncNow} busy={syncing} />}
+        </Section>
+      )}
+      {isEnabled("fieldReport") && (
+        <Section title={t("profile.fieldReport")}>
+          <Muted>{t("profile.fieldReportHelp")}</Muted>
+          <ErrorNotice error={report.error} />
+          <Button label={t("profile.sendFieldReport")} variant="quiet" onPress={sendFieldReport} busy={report.pending} />
+        </Section>
+      )}
       <Button label={t("profile.signOut")} variant="quiet" onPress={() => signOut().then(() => router.replace("/login"))} />
     </Screen>
   );

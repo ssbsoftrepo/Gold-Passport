@@ -6,6 +6,7 @@ import { DecisionForm, ErrorNotice, Facts, FileButton, Loading, StatusTag } from
 import { api, call } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useAction, useLoad } from "@/lib/hooks";
+import { isEnabled } from "@/lib/features";
 import { useI18n } from "@/lib/i18n";
 
 export default function OnboardingReview() {
@@ -88,12 +89,14 @@ export default function OnboardingReview() {
         </div>
 
         <div className="stack">
-          <section className="panel stack">
-            <h2>{t("admin.onb.kyc")}</h2>
-            <StatusTag status={app.kycStatus === "PASSED" ? "APPROVED" : app.kycStatus === "FAILED" ? "REJECTED" : "SUBMITTED"}
-              label={t(`kyc.${app.kycStatus}`)} />
-            {app.kycDetails && <p className="muted">{app.kycDetails}</p>}
-          </section>
+          {isEnabled("automaticIdCheck") && (
+            <section className="panel stack">
+              <h2>{t("admin.onb.kyc")}</h2>
+              <StatusTag status={app.kycStatus === "PASSED" ? "APPROVED" : app.kycStatus === "FAILED" ? "REJECTED" : "SUBMITTED"}
+                label={t(`kyc.${app.kycStatus}`)} />
+              {app.kycDetails && <p className="muted">{app.kycDetails}</p>}
+            </section>
+          )}
           {app.status === "SUBMITTED" ? (
             <section className="panel stack">
               <h2>{t("admin.onb.decision")}</h2>
