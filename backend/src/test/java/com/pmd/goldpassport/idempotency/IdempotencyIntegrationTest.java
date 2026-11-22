@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.pmd.goldpassport.support.ApiClient;
 import com.pmd.goldpassport.support.ApiClient.Response;
 import com.pmd.goldpassport.support.PostgresIntegrationTest;
@@ -44,7 +44,7 @@ class IdempotencyIntegrationTest extends PostgresIntegrationTest {
         assertThat(api.put(miner, "/api/v1/onboarding/me", Map.of(
                 "fullName", "Rosa Quispe", "documentType", "DNI", "documentNumber", ApiClient.randomDni()))
                 .status()).isEqualTo(200);
-        String minerId = api.get(miner, "/api/v1/me").body().get("id").asText();
+        String minerId = api.get(miner, "/api/v1/me").body().get("id").asString();
 
         Response first = upload(miner, "outbox-item-1");
         Response repeat = upload(miner, "outbox-item-1");

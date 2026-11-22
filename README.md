@@ -7,7 +7,7 @@ anyone can verify from the lot code.
 
 | App | Who uses it | Tech |
 | --- | --- | --- |
-| `backend/` | Everyone, through the apps | Java 21, Spring Boot 3.5 modular monolith (Spring Modulith), PostgreSQL, Flyway |
+| `backend/` | Everyone, through the apps | Java 21, Spring Boot 4.1 modular monolith (Spring Modulith), PostgreSQL, Flyway |
 | `apps/web/` | PMD back office, Collectors/Plants, public passport page | Next.js 16 (React 19, TypeScript) |
 | `apps/mobile/` | Miners and Transporters in the field (works offline) | React Native + Expo SDK 58 (TypeScript) |
 | `api/openapi.yaml` | The contract between all three | OpenAPI 3.0, single source of truth |
