@@ -58,6 +58,7 @@ whole flow at once: see [docs/local-development.md](docs/local-development.md#de
 | [docs/deployment-aws.md](docs/deployment-aws.md) | Target AWS architecture and configuration |
 | [docs/field-trial.md](docs/field-trial.md) | Trying the mobile app on real phones at a mine: scenarios, pass criteria, what to collect |
 | [docs/security.md](docs/security.md) | Authentication, authorization, evidence integrity, data protection |
+| [docs/monitoring.md](docs/monitoring.md) | Metrics, alarms, dashboard and the runbook for each alarm |
 | [docs/decisions.md](docs/decisions.md) | Architecture decision records |
 
 ## Repository layout
@@ -69,6 +70,7 @@ apps/web/            Next.js back office + Collector/Plant portal + public passp
 apps/mobile/         Expo app for Miners and Transporters (offline outbox, camera, GPS)
 infra/               AWS CDK app: one-click deployment to AWS (docs/deploy.md)
 docs/                Technical documentation
+infra/               CloudFormation for alarms and the dashboard (monitoring.yml)
 scripts/             Developer scripts (run backend, regenerate API types, lint the contract)
 docker-compose.yml   Local stack (PostgreSQL, backend, web, optional LocalStack)
 .github/workflows/   CI: contract, backend, web, mobile, infrastructure; Deploy (manual, to AWS)

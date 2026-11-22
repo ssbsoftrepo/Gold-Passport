@@ -1,5 +1,5 @@
 import { File } from "expo-file-system";
-import createClient, { type Middleware } from "openapi-fetch";
+import createClient from "openapi-fetch";
 import { Platform } from "react-native";
 import type { components, paths } from "@/api/schema";
 
@@ -33,12 +33,76 @@ export function authHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
-const auth: Middleware = {
-  onRequest({ request }) {
-    if (accessToken) request.headers.set("Authorization", `Bearer ${accessToken}`);
-    return request;
-  },
-};
+/**
+ * Gets a new access token without asking the user (Cognito refresh token). Resolves to null when
+ * that is impossible and the user has to sign in again; throws a {@link NetworkError} when the
+ * sign-in service cannot be reached, so callers retry later instead of signing the user out.
+ */
+export type TokenRenewer = () => Promise<string | null>;
+
+let renewer: TokenRenewer | null = null;
+let renewing: Promise<string | null> | null = null;
+let lastRenewedAt = 0;
+
+/** Renew this long before the token expires, so a large upload does not go out with a dying token. */
+const RENEW_BEFORE_EXPIRY_MS = 2 * 60_000;
+/** A phone clock that is far off makes every token look expired; renew at most this often then. */
+const MIN_RENEW_INTERVAL_MS = 5 * 60_000;
+
+export function setTokenRenewer(next: TokenRenewer | null) {
+  renewer = next;
+}
+
+/** One renewal at a time, shared by every request that needs it. */
+function renewAccessToken(): Promise<string | null> {
+  if (!renewer) return Promise.resolve(null);
+  renewing ??= renewer()
+    .then((token) => {
+      if (token) lastRenewedAt = Date.now();
+      return token;
+    })
+    .finally(() => {
+      renewing = null;
+    });
+  return renewing;
+}
+
+/** Expiry of a JWT in epoch milliseconds, or null when it cannot be read. */
+function tokenExpiry(token: string): number | null {
+  try {
+    const part = token.split(".")[1];
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const exp = (JSON.parse(atob(base64)) as { exp?: unknown }).exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function expiresSoon(token: string): boolean {
+  const expiry = tokenExpiry(token);
+  return (
+    expiry !== null && expiry - Date.now() < RENEW_BEFORE_EXPIRY_MS && Date.now() - lastRenewedAt > MIN_RENEW_INTERVAL_MS
+  );
+}
+
+/**
+ * Sends a request with the current token. A token about to expire is renewed first; one the server
+ * refuses (it expired while the phone was offline, or the phone's clock is wrong) is renewed and the
+ * request sent once more. Without a renewer (local mode) a 401 is returned as it is.
+ */
+async function sendAuthorized(send: (headers: Record<string, string>) => Promise<Response>): Promise<Response> {
+  if (renewer && accessToken && expiresSoon(accessToken)) {
+    // Without signal the renewal fails; send anyway, the token may still be accepted.
+    await renewAccessToken().catch(() => undefined);
+  }
+  const used = accessToken;
+  const response = await send(authHeaders());
+  if (response.status !== 401 || !renewer || !used) return response;
+  // Another request may have renewed the token meanwhile; otherwise renew it now.
+  const renewed = accessToken !== used ? accessToken : await renewAccessToken();
+  return renewed ? send(authHeaders()) : response;
+}
 
 /**
  * On a weak signal a request can hang for minutes without failing. Every request therefore has a
@@ -82,8 +146,16 @@ export async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {
   }
 }
 
-export const api = createClient<paths>({ baseUrl: API_BASE_URL, fetch: (request) => fetchWithTimeout(request) });
-api.use(auth);
+export const api = createClient<paths>({
+  baseUrl: API_BASE_URL,
+  // Each attempt sends a copy: a request's body can only be read once.
+  fetch: (request) =>
+    sendAuthorized((headers) => {
+      const attempt = request.clone();
+      Object.entries(headers).forEach(([name, value]) => attempt.headers.set(name, value));
+      return fetchWithTimeout(attempt);
+    }),
+});
 
 export class ApiError extends Error {
   constructor(
@@ -153,10 +225,12 @@ export async function uploadMultipart<T>(
   Object.entries(fields).forEach(([k, v]) => form.append(k, v));
   // React Native accepts { uri, name, type } objects as file parts.
   form.append("file", file as unknown as Blob);
-  const response = await fetchWithTimeout(
-    `${API_BASE_URL}${path}`,
-    { method: "POST", body: form, headers: { ...authHeaders(), ...idempotencyHeaders(idempotencyKey) } },
-    uploadTimeoutMs(fileSize(file.uri)),
+  const response = await sendAuthorized((headers) =>
+    fetchWithTimeout(
+      `${API_BASE_URL}${path}`,
+      { method: "POST", body: form, headers: { ...headers, ...idempotencyHeaders(idempotencyKey) } },
+      uploadTimeoutMs(fileSize(file.uri)),
+    ),
   );
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw toApiError(response.status, body, response.statusText);
@@ -165,11 +239,13 @@ export async function uploadMultipart<T>(
 
 /** POST a JSON body to a path (used by the offline outbox, which stores raw paths). */
 export async function postJson<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
-  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...idempotencyHeaders(idempotencyKey) },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const response = await sendAuthorized((headers) =>
+    fetchWithTimeout(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers, ...idempotencyHeaders(idempotencyKey) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
   const json = await response.json().catch(() => ({}));
   if (!response.ok) throw toApiError(response.status, json, response.statusText);
   return json as T;
