@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.modulith.events.ApplicationModuleListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.pmd.goldpassport.identity.UserAccounts;
 import com.pmd.goldpassport.lab.LabEvent;
@@ -20,6 +21,10 @@ import com.pmd.goldpassport.transport.TransportEvent;
 /**
  * Decides who hears about what. Listeners run asynchronously after the business transaction
  * commits; Spring Modulith's event publication registry re-delivers them if the app crashes.
+ *
+ * <p>Unlike {@code @ApplicationModuleListener}, they do not open a transaction around the whole
+ * listener: {@link NotificationService#notify} saves the inbox entries in its own short transaction
+ * and sends push notifications after it, so no pooled database connection waits on Amazon SNS.
  */
 @Component
 public class NotificationListeners {
@@ -32,7 +37,8 @@ public class NotificationListeners {
         this.users = users;
     }
 
-    @ApplicationModuleListener
+    @Async
+    @TransactionalEventListener
     public void on(OnboardingEvent e) {
         Object[] args = {"", "", e.details().getOrDefault("notes", "")};
         Map<String, String> data = Map.of("applicationId", e.applicationId().toString());
@@ -46,7 +52,8 @@ public class NotificationListeners {
         }
     }
 
-    @ApplicationModuleListener
+    @Async
+    @TransactionalEventListener
     public void on(RelationshipEvent e) {
         Object[] args = {"", "", e.details().getOrDefault("notes", "")};
         Map<String, String> data = Map.of("relationshipId", e.relationshipId().toString());
@@ -63,7 +70,8 @@ public class NotificationListeners {
         }
     }
 
-    @ApplicationModuleListener
+    @Async
+    @TransactionalEventListener
     public void on(TransportEvent e) {
         UUID transporter = e.transporterUserId();
         UUID miner = e.minerUserId();
@@ -94,7 +102,8 @@ public class NotificationListeners {
         notifications.notify(recipients, e.eventType(), args, data);
     }
 
-    @ApplicationModuleListener
+    @Async
+    @TransactionalEventListener
     public void on(LabEvent e) {
         Map<String, String> data = Map.of("lotId", e.lotId().toString());
         Object[] args = {e.lotCode(), "", ""};
@@ -109,7 +118,8 @@ public class NotificationListeners {
         }
     }
 
-    @ApplicationModuleListener
+    @Async
+    @TransactionalEventListener
     public void on(SettlementEvent e) {
         Map<String, String> data = Map.of("lotId", e.lotId().toString());
         Object amount = e.details().getOrDefault("amount", "");

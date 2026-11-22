@@ -25,6 +25,7 @@ import com.pmd.goldpassport.shared.InvalidStateException;
 import com.pmd.goldpassport.shared.NotFoundException;
 import com.pmd.goldpassport.shared.Role;
 import com.pmd.goldpassport.storage.FileStorage;
+import com.pmd.goldpassport.storage.StagedFile;
 import com.pmd.goldpassport.storage.StoredFileInfo;
 
 @Service
@@ -70,17 +71,19 @@ public class OnboardingService implements ParticipantDirectory {
         return app;
     }
 
-    @Transactional
+    /** Not {@code @Transactional}: the file is uploaded first, then recorded in a short transaction. */
     public ApplicationDocument uploadDocument(CurrentUser me, DocumentKind kind, MultipartFile file) {
         if (kind == null) {
             throw new BadRequestException("DOCUMENT_KIND_REQUIRED", "Document kind is required");
         }
-        OnboardingApplication app = getOrCreate(me);
-        if (!app.getStatus().isEditable()) {
-            throw InvalidStateException.of("Onboarding application", app.getStatus(), "upload document");
-        }
-        StoredFileInfo stored = files.store(file, FILE_CONTEXT, app.getId(), me.userId());
-        return app.addDocument(ApplicationDocument.of(kind, stored), Instant.now(clock));
+        return files.withUpload(file, FILE_CONTEXT, me.userId(), staged -> {
+            OnboardingApplication app = getOrCreate(me);
+            if (!app.getStatus().isEditable()) {
+                throw InvalidStateException.of("Onboarding application", app.getStatus(), "upload document");
+            }
+            StoredFileInfo stored = files.record(staged, app.getId());
+            return app.addDocument(ApplicationDocument.of(kind, stored), Instant.now(clock));
+        });
     }
 
     @Transactional
