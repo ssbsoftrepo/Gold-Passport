@@ -60,6 +60,7 @@ whole flow at once: see [docs/local-development.md](docs/local-development.md#de
 | [docs/crash-reporting.md](docs/crash-reporting.md) | Crash and problem reports from the apps (Sentry) |
 | [docs/releases.md](docs/releases.md) | Releasing by phase: which features each release shows, and how to build it |
 | [docs/security.md](docs/security.md) | Authentication, authorization, evidence integrity, data protection |
+| [docs/monitoring.md](docs/monitoring.md) | Metrics, alarms, dashboard and the runbook for each alarm |
 | [docs/decisions.md](docs/decisions.md) | Architecture decision records |
 
 ## Repository layout
@@ -71,6 +72,7 @@ apps/web/            Next.js back office + Collector/Plant portal + public passp
 apps/mobile/         Expo app for Miners and Transporters (offline outbox, camera, GPS)
 infra/               AWS CDK app: one-click deployment to AWS (docs/deploy.md)
 docs/                Technical documentation
+infra/               CloudFormation for alarms and the dashboard (monitoring.yml)
 scripts/             Developer scripts (run backend, regenerate API types, lint the contract)
 docker-compose.yml   Local stack (PostgreSQL, backend, web, optional LocalStack)
 .github/workflows/   CI: contract, backend, web, mobile, infrastructure; Deploy (manual, to AWS)
