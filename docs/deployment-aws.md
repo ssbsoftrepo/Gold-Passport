@@ -1,7 +1,9 @@
 # Deploying on AWS
 
-This is the target setup the code is ready for. Infrastructure as code (CDK or Terraform) is not
-part of this repository yet; it is the first infrastructure task (see [handover.md](handover.md)).
+This is the target setup the code is ready for. The AWS CDK app in `infra/` builds it, with a
+one-click Deploy workflow: see [deploy.md](deploy.md). It differs from the diagram below in two
+places for now: CloudFront (with a VPC origin) sits in front of an internal load balancer, and
+WAF is not added yet.
 
 ## Target architecture
 
@@ -111,14 +113,12 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
 
 ## CI/CD
 
-`.github/workflows/ci.yml` already validates the contract, backend, web and mobile on every pull
-request. To deploy, add a job on `main` that:
+`.github/workflows/ci.yml` validates the contract, backend, web and mobile on every pull request;
+`.github/workflows/infra.yml` checks the CDK app and builds both Docker images.
 
-1. builds and pushes both images to ECR (`docker buildx build --platform linux/arm64,linux/amd64`),
-2. updates the ECS services (rolling deployment, health check `/actuator/health/readiness`),
-3. runs `eas build` / `eas update` for the mobile app on release tags.
-
-Use GitHub OIDC to assume a deployment role; do not store AWS keys in GitHub.
+Deployments run from `.github/workflows/deploy.yml` (manual, per environment) with GitHub OIDC; no
+AWS keys are stored in GitHub. See [deploy.md](deploy.md). The mobile app is built with
+`eas build` / `eas update` separately.
 
 ## Go-live checklist
 
