@@ -142,3 +142,5 @@ AWS keys are stored in GitHub. See [deploy.md](deploy.md). The mobile app is bui
       completion date (stuck notifications)
 - [ ] Backups restored once as a drill
 - [ ] Privacy notice and consent text reviewed for Ley 29733; data retention periods agreed
+- [ ] Dependency scan green on `main`; Dependabot alerts and security updates turned on
+      ([security.md](security.md#dependency-vulnerabilities))
