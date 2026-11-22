@@ -50,7 +50,7 @@ jobs:
       # Unit tests, Spring Modulith boundary checks, contract test and the end-to-end flow
       # (Testcontainers starts PostgreSQL; GitHub runners have Docker).
       - run: mvn -B -f backend/pom.xml verify
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: modulith-docs
