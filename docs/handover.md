@@ -30,8 +30,8 @@ Be precise about this when planning the first sprint.
 | --- | --- | --- |
 | API contract | ✅ | Redocly lint passes |
 | Database migrations and seed | ✅ | Applied to PostgreSQL 16 |
-| Web app | ✅ | Type check, ESLint and `next build` pass; screens reviewed against a mock API |
-| Mobile app | ✅ (static) | Type check and ESLint pass; Android JS bundle exports; login screen rendered via web export. Not yet run on a device |
+| Web app | ✅ | Type check, ESLint, unit and component tests (Vitest) and `next build` pass; screens reviewed against a mock API |
+| Mobile app | ✅ (no device yet) | Type check, ESLint and unit tests (Jest; offline outbox, API, cache) pass; Android JS bundle exports; login screen rendered via web export. Not yet run on a device |
 | Contract ↔ backend endpoints | ✅ | All 71 operations match (scripted check; `ApiContractTest` enforces it in CI) |
 | Contract ↔ backend DTO field names | ✅ | Scripted comparison of every schema with its Java record |
 | Backend Java syntax and internal references | ✅ | `javac` parse check and cross-reference check of the project's own types |

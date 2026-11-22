@@ -748,6 +748,9 @@ type Params = Record<string, string | number | null | undefined>;
 
 const dictionaries: Record<Locale, Partial<Record<MessageKey, string>>> = { en, es };
 
+/** Both dictionaries, for checks that every key and placeholder is translated. */
+export const messages = { en, es };
+
 export function translate(locale: Locale, key: string, params?: Params): string {
   const template = dictionaries[locale][key as MessageKey] ?? en[key as MessageKey] ?? key;
   if (!params) return template;
