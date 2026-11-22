@@ -57,6 +57,7 @@ enforced by `ModularityTest`:
 | `notifications` | Inbox, device tokens, push delivery | none (event listener) | identity + every module's events |
 | `audit` | Hash-chained custody ledger | `LedgerQueries` | shared |
 | `passport` | Ledger endpoint and public passport | none (web only) | lots, audit |
+| `monitoring` | Metrics: AWS calls, stuck events, field sync delay; CloudWatch export ([monitoring.md](monitoring.md)) | `FieldSync` | shared |
 
 ```mermaid
 flowchart BT
@@ -77,6 +78,8 @@ flowchart BT
     audit -. DomainEvent .-> shared
     passport --> lots
     passport --> audit
+    lots --> monitoring
+    transport --> monitoring
 ```
 
 Running `mvn verify` also writes PlantUML diagrams of the actual module graph to
@@ -216,6 +219,13 @@ Aggregates use optimistic locking (`version` column); a concurrent edit returns
   sent, so the ledger records when things really happened. Business errors (4xx) are not retried;
   they show in Profile → Pending uploads.
 - Session token in the device keystore (`expo-secure-store`); the last user profile is cached so
-  the app opens without signal.
+  the app opens without signal. With Cognito the refresh token is kept there too
+  (`src/lib/refresh.ts`): the API client renews the 1-hour ID token before it expires and retries
+  once after a 401, so a sign-in survives days offline. Failing to reach Cognito counts as a network
+  error (retried later); only a rejected refresh token asks the user to sign in again.
 - Camera-only evidence capture (`src/lib/capture.ts`), GPS via `expo-location` (works offline).
+  Photos are scaled down on the phone before they are uploaded or queued (longest side 1600 px,
+  2048 px for ID documents, JPEG quality 0.7; `expo-image-manipulator`), typically a few hundred KB
+  instead of several MB, which matters on a weak signal. The server hashes the file it receives, so
+  the ledger records the uploaded version.
 - Push token registration (`src/lib/push.ts`) for SNS; the inbox is always the source of truth.
