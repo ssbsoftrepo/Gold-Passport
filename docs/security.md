@@ -102,12 +102,13 @@ When the scan fails:
    decision in `osv-scanner.toml`: the advisory id, the reason and an expiry date at most 90 days
    ahead. When it expires the scan fails again and the decision is reviewed.
 
-Accepted today (until 2027-01-26):
+Accepted today (each entry expires on the date in `osv-scanner.toml`: 2027-01-26 or 2027-02-20):
 
 | Advisory | Package | Why it stays |
 | --- | --- | --- |
 | [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high) | zod 3.25, in `@expo/cli` | Fixed only in zod 4, which the Expo command-line tool does not support; it runs at build time on our own project files, not in the app on phones. Revisit with the next Expo SDK |
-| [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low) | deepmerge 4.3.1, in `@expo/config` | No fixed version published; it merges our own app config at build time |
+| [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) (medium) | glob 13, in the Expo config tools | Fixed only in glob 14, which Expo SDK 58 does not use; it finds our own project files at build time, never with untrusted input |
+| [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) (medium) | minimatch 10, in Expo, typescript-eslint and eslint-config-next | Fixed only in minimatch 11; build and lint tools only, with patterns from our own config |
 | [GHSA-j9f9-w8pj-32f8](https://github.com/advisories/GHSA-j9f9-w8pj-32f8) (critical) | Spring Framework 6.2 `spring-webmvc` | Needs Server-Sent Events with view fragments; the backend is a JSON API with neither. No open-source 6.2 fix; gone with the Spring Boot 4 upgrade (Spring Framework 7.0.9) |
 | [GHSA-pc63-qcmh-9cmg](https://github.com/advisories/GHSA-pc63-qcmh-9cmg) (critical) | Spring Framework 6.2 `spring-webmvc` | Needs `XsltView`; the backend renders no views. Same fix as above |
 

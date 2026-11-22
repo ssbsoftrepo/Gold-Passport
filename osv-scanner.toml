@@ -12,11 +12,22 @@ reason = """\
   does not support. Revisit with the next Expo SDK."""
 
 [[IgnoredVulns]]
-id = "GHSA-gcqx-w48m-w2h4"
-ignoreUntil = 2027-01-26
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-02-20
 reason = """\
-  deepmerge 4.3.1 (prototype poisoning), used by @expo/config at build time to merge our own app \
-  config. No fixed version is published. Revisit with the next Expo SDK or a deepmerge release."""
+  glob 13 (an aborted search can keep walking the file system), used only at build time by the \
+  Expo config tools (@expo/config, @expo/config-plugins) to find our own project files. Nothing \
+  passes it an AbortSignal or untrusted paths. Fixed only in glob 14, which Expo SDK 58 does not \
+  use. Revisit with the next Expo SDK."""
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-20
+reason = """\
+  minimatch 10 (slow matching of crafted patterns), used only by build and lint tools \
+  (@expo/fingerprint, typescript-eslint, eslint-config-next) with patterns from our own config. \
+  Never runs in the apps or the server. Fixed only in minimatch 11, which those tools do not use \
+  yet. Revisit with the next Expo SDK and Next.js release."""
 
 [[IgnoredVulns]]
 id = "GHSA-j9f9-w8pj-32f8"
