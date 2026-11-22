@@ -26,7 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.pmd.goldpassport.notifications.push.PushGateway;
 import com.pmd.goldpassport.onboarding.kyc.IdentityVerifier;
 import com.pmd.goldpassport.storage.internal.ObjectStore;
@@ -115,7 +115,7 @@ class ConnectionUseTest extends PostgresIntegrationTest {
                 Map.of("kind", "ID_DOCUMENT")), 201);
         ok(api.upload(miner, "/api/v1/onboarding/me/documents", "selfie.jpg", "image/jpeg", ApiClient.JPEG,
                 Map.of("kind", "SELFIE")), 201);
-        String applicationId = ok(api.post(miner, "/api/v1/onboarding/me/submit", null), 200).body().get("id").asText();
+        String applicationId = ok(api.post(miner, "/api/v1/onboarding/me/submit", null), 200).body().get("id").asString();
 
         // The reviewer approves at once, typically before the asynchronous KYC check has finished.
         ok(api.post(admin, "/api/v1/admin/onboarding/{id}/approve", Map.of(), applicationId), 200);
@@ -152,10 +152,10 @@ class ConnectionUseTest extends PostgresIntegrationTest {
                 Map.of("kind", "ID_DOCUMENT")), 201);
         ok(api.upload(miner, "/api/v1/onboarding/me/documents", "selfie.jpg", "image/jpeg", ApiClient.JPEG,
                 Map.of("kind", "SELFIE")), 201);
-        String applicationId = ok(api.post(miner, "/api/v1/onboarding/me/submit", null), 200).body().get("id").asText();
+        String applicationId = ok(api.post(miner, "/api/v1/onboarding/me/submit", null), 200).body().get("id").asString();
         ok(api.post(admin, "/api/v1/admin/onboarding/{id}/approve", Map.of(), applicationId), 200);
         String lotId = ok(api.post(miner, "/api/v1/lots", Map.of("mineSiteName", "Socavon 1")), 201)
-                .body().get("id").asText();
+                .body().get("id").asString();
         long filesBefore = countStoredFiles();
 
         // Only known once the bytes are stored and sniffed: a PDF is not an extraction photo.
@@ -166,7 +166,7 @@ class ConnectionUseTest extends PostgresIntegrationTest {
                 ApiClient.JPEG, Map.of("kind", "SELFIE"));
 
         assertThat(notAPhoto.status()).as("body: %s", notAPhoto.body()).isEqualTo(400);
-        assertThat(notAPhoto.body().get("code").asText()).isEqualTo("PHOTO_REQUIRED");
+        assertThat(notAPhoto.body().get("code").asString()).isEqualTo("PHOTO_REQUIRED");
         assertThat(notEditable.status()).as("body: %s", notEditable.body()).isEqualTo(409);
         assertThat(countStoredFiles()).as("files left in storage").isEqualTo(filesBefore);
     }

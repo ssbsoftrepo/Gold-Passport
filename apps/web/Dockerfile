@@ -6,6 +6,13 @@ RUN npm ci
 COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+# Optional: error reports to Sentry (docs/crash-reporting.md). Empty = nothing is sent.
+ARG NEXT_PUBLIC_SENTRY_DSN=
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
+# Optional: build for one release (1 to 5, docs/releases.md). Empty = every feature.
+ARG NEXT_PUBLIC_RELEASE_PHASE=
+ENV NEXT_PUBLIC_RELEASE_PHASE=$NEXT_PUBLIC_RELEASE_PHASE
 RUN npm run build
 
 FROM node:22-alpine

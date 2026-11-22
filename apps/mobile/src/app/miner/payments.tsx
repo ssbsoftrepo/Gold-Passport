@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { useState } from "react";
 import { View } from "react-native";
 import { Body, Button, ErrorNotice, Field, ListItem, Muted, Notice, Screen, Stamp, StatusTag } from "@/components/ui";
@@ -8,12 +9,14 @@ import { useI18n } from "@/lib/i18n";
 import { space, type } from "@/lib/theme";
 
 /** Payment proposals from the Collector/Plant: accept or dispute. PMD validates afterwards. */
-export default function Payments() {
+export default gated("plantFlow", Payments);
+
+function Payments() {
   const { t } = useI18n();
-  const { data, error, loading, reload } = useScreenData(() => call(api.GET("/api/v1/settlements")));
+  const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/settlements")), "settlements");
   return (
     <Screen title={t("payments.title")} refreshing={loading} onRefresh={reload}>
-      <ErrorNotice error={error} />
+      <ErrorNotice error={error} staleSince={staleSince} />
       {data && data.length === 0 && <Notice>{t("payments.empty")}</Notice>}
       {data?.map((s) => <Payment key={s.id} s={s} onChanged={reload} />)}
     </Screen>

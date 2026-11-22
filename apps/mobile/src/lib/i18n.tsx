@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocales } from "expo-localization";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { isNetworkError } from "./api";
+import { isEnabled } from "./features";
 
 /** Spanish first (field users), English second. `{name}` placeholders are replaced from params. */
 
@@ -17,15 +19,21 @@ const es = {
   "common.no": "No",
   "common.none": "Nada por ahora.",
   "common.offlineSaved": "Sin conexión: se guardó y se enviará al recuperar la señal.",
+  "common.offlineBar": "Sin internet. Puedes seguir trabajando: todo se enviará al volver la señal.",
+  "common.showingSaved": "Sin conexión o señal débil. Mostrando lo guardado el {time}.",
   "common.grams": "{value} g",
   "common.percent": "{value} %",
 
+  "tabs.home": "Inicio",
   "tabs.lots": "Lotes",
   "tabs.transports": "Transportes",
   "tabs.payments": "Pagos",
   "tabs.inbox": "Avisos",
   "tabs.profile": "Perfil",
   "tabs.partners": "Socios",
+  "soon.title": "Tu cuenta está aprobada",
+  "soon.body": "Pronto podrás registrar tus lotes y transportes desde aquí. Te avisaremos en Avisos cuando esté disponible.",
+  "soon.notYet": "Esta función aún no está disponible.",
 
   "role.MINER": "Minero",
   "role.TRANSPORTER": "Transportista",
@@ -210,7 +218,13 @@ const es = {
   "profile.syncNow": "Enviar ahora",
   "profile.discard": "Descartar",
   "profile.failed": "No se pudo enviar: {error}",
+  "profile.waitingForSignal": "Esperando buena señal. Se enviará automáticamente.",
+  "profile.signInToSend": "Tu sesión venció. Cierra sesión y vuelve a entrar para enviar lo pendiente; no se perderá nada.",
   "profile.signOut": "Cerrar sesión",
+  "profile.fieldReport": "Informe de campo",
+  "profile.fieldReportHelp":
+    "Si algo no funcionó bien (señal, envíos, GPS), envía este informe al equipo de PMD por WhatsApp o correo. Incluye el modelo del teléfono y cómo fueron la señal, los envíos y el GPS; no incluye tu nombre, tu número, ubicaciones ni fotos.",
+  "profile.sendFieldReport": "Enviar informe de campo",
 
   "checkpoint.DEPARTED": "Salida",
   "checkpoint.ARRIVED_AT_MINER": "Llegada a la mina",
@@ -221,7 +235,7 @@ const es = {
   "lot.photoCount": "{n} fotos",
   "onb.passport": "Pasaporte",
   "errors.generic": "Algo salió mal. Inténtalo de nuevo.",
-  "errors.network": "Sin conexión con PMD.",
+  "errors.network": "Sin conexión con PMD o la señal es muy débil. Inténtalo cuando tengas mejor señal.",
   "errors.OTP_INVALID": "El código no es correcto.",
   "errors.OTP_EXPIRED": "El código venció. Pide uno nuevo.",
   "errors.INVALID_PHONE": "Usa el formato +51987654321.",
@@ -250,12 +264,18 @@ const en: Partial<Record<MessageKey, string>> = {
   "common.no": "No",
   "common.none": "Nothing yet.",
   "common.offlineSaved": "Offline: saved and will be sent when the signal returns.",
+  "common.offlineBar": "No internet. Keep working: everything will be sent when the signal returns.",
+  "common.showingSaved": "No connection or weak signal. Showing what was saved on {time}.",
+  "tabs.home": "Home",
   "tabs.lots": "Lots",
   "tabs.transports": "Transports",
   "tabs.payments": "Payments",
   "tabs.inbox": "Inbox",
   "tabs.profile": "Profile",
   "tabs.partners": "Partners",
+  "soon.title": "Your account is approved",
+  "soon.body": "Soon you will record your batches and trips here. We will let you know in Inbox when it is available.",
+  "soon.notYet": "This feature is not available yet.",
   "role.MINER": "Miner",
   "role.TRANSPORTER": "Transporter",
   "role.COLLECTOR": "Collector / Plant",
@@ -426,7 +446,13 @@ const en: Partial<Record<MessageKey, string>> = {
   "profile.syncNow": "Send now",
   "profile.discard": "Discard",
   "profile.failed": "Could not send: {error}",
+  "profile.waitingForSignal": "Waiting for a good signal. It will be sent automatically.",
+  "profile.signInToSend": "Your session expired. Sign out and sign in again to send pending items; nothing will be lost.",
   "profile.signOut": "Sign out",
+  "profile.fieldReport": "Field report",
+  "profile.fieldReportHelp":
+    "If something did not work well (signal, sending, GPS), send this report to the PMD team by WhatsApp or email. It includes the phone model and how the signal, sending and GPS went; it does not include your name, number, locations or photos.",
+  "profile.sendFieldReport": "Send field report",
   "checkpoint.DEPARTED": "Departed",
   "checkpoint.ARRIVED_AT_MINER": "Arrived at the mine",
   "checkpoint.PICKED_UP": "Picked up",
@@ -436,7 +462,7 @@ const en: Partial<Record<MessageKey, string>> = {
   "lot.photoCount": "{n} photos",
   "onb.passport": "Passport",
   "errors.generic": "Something went wrong. Try again.",
-  "errors.network": "No connection to PMD.",
+  "errors.network": "No connection to PMD, or the signal is too weak. Try again when the signal improves.",
   "errors.OTP_INVALID": "That code is not correct.",
   "errors.OTP_EXPIRED": "The code expired. Request a new one.",
   "errors.INVALID_PHONE": "Use the format +51987654321.",
@@ -451,6 +477,10 @@ const en: Partial<Record<MessageKey, string>> = {
 };
 
 export type Locale = "es" | "en";
+
+/** Both dictionaries, for checks that every key and placeholder is translated. */
+export const messages = { es, en };
+
 type Params = Record<string, string | number | null | undefined>;
 
 export function translate(locale: Locale, key: string, params?: Params): string {
@@ -470,6 +500,7 @@ const Ctx = createContext<I18n | null>(null);
 const KEY = "pmd.locale";
 
 function deviceLocale(): Locale {
+  if (!isEnabled("english")) return "es";
   return getLocales()[0]?.languageCode === "en" ? "en" : "es";
 }
 
@@ -478,7 +509,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((v) => {
-      if (v === "es" || v === "en") setLocaleState(v);
+      if (v === "es" || (v === "en" && isEnabled("english"))) setLocaleState(v);
     });
   }, []);
 
@@ -490,6 +521,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<I18n>(() => {
     const t = (key: string, params?: Params) => translate(locale, key, params);
     const tError = (e: unknown) => {
+      if (isNetworkError(e)) return translate(locale, "errors.network");
       if (e && typeof e === "object" && "code" in e) {
         const key = `errors.${String((e as { code: string }).code)}`;
         const tr = translate(locale, key);
@@ -497,7 +529,6 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
         const message = (e as { message?: string }).message;
         if (message) return message;
       }
-      if (e instanceof TypeError) return translate(locale, "errors.network");
       return translate(locale, "errors.generic");
     };
     return { locale, setLocale, t, tError };

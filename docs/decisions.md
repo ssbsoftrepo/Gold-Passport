@@ -66,17 +66,36 @@ data).
 device times within a clock-skew limit and keeps its own receipt time. Business rejections of a
 queued action are shown to the user rather than retried.
 
-## ADR-007: Spring Boot 3.5 line
+**Weak signal (amendment).** A weak signal is worse than none: requests hang, or succeed while the
+answer is lost. So every request has a deadline (20 s; uploads scale with file size), timeouts and
+server errors (5xx, 408, 429) are retried on a backoff timer (10 s doubling to 5 min) as well as when
+the network comes back, and each queued action carries an `Idempotency-Key` that the backend uses to
+return the first result for a repeat instead of applying it twice. Screens keep their last data on
+the device and show when it was saved; the app opens from the cached profile. A 401 pauses the outbox
+until the user signs in again rather than failing the queued items.
 
-**Context.** Code was written without access to Maven Central, so only APIs known to be stable were
-used.
+## ADR-007: Spring Boot 4.1 line
 
-**Decision.** Spring Boot 3.5.x with Spring Modulith 1.4.x and Java 21.
+**Context.** The code was first written on Spring Boot 3.5, whose open-source support ended in
+mid-2026: it no longer gets free security fixes.
 
-**Consequences.** Spring Boot 3.5 open-source support ends around mid-2026 (check
-https://spring.io/projects/spring-boot#support); plan the move to
-Spring Boot 4.x / Spring Modulith 2.x early (see handover.md). The modules use only mainstream APIs,
-so the upgrade is mostly dependency and package changes (Jackson 3, test annotations).
+**Decision.** Spring Boot 4.1.x with Spring Modulith 2.1.x, springdoc-openapi 3.x and Java 21
+(upgraded October 2026).
+
+**Consequences.**
+
+- JSON is handled by Jackson 3 (`tools.jackson.*` packages; its exceptions are unchecked). The
+  annotations keep their `com.fasterxml.jackson.annotation` package. springdoc still brings
+  Jackson 2 for its own use; application code must import only Jackson 3.
+- API responses are unchanged, except in error bodies: `"type": "about:blank"` is left out (RFC 9457:
+  a missing `type` means the same) and the 422 `title` reads "Unprocessable Content" (RFC 9110).
+  The apps rely on `code` only. Ledger payloads are byte-for-byte the same format;
+  `LedgerPayloadFormatTest` keeps it that way across future upgrades.
+- Starters are modular (`spring-boot-starter-webmvc`, `-flyway`, `-security-oauth2-resource-server`,
+  `-webmvc-test`), and Testcontainers 2 renamed its artifacts.
+- Each Spring Boot minor line gets about a year of open-source support
+  (https://spring.io/projects/spring-boot#support): move to the next 4.x minor as routine
+  maintenance.
 
 ## ADR-008: Web app is client-rendered against the API
 

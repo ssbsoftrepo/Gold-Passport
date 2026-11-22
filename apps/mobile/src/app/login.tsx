@@ -7,6 +7,8 @@ import { api, call, type Schemas } from "@/lib/api";
 import { completeCognitoLogin, startCognitoLogin, type CognitoChallenge } from "@/lib/cognito";
 import { useAction } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
+import { isEnabled } from "@/lib/features";
+import type { CognitoRefresh } from "@/lib/refresh";
 import { useSession } from "@/lib/session";
 import { colors, space, type } from "@/lib/theme";
 
@@ -48,6 +50,7 @@ export default function Login() {
   const verify = () =>
     action.run(async () => {
       let token: string;
+      let refresh: CognitoRefresh | undefined;
       if (cognito && challenge) {
         const result = await completeCognitoLogin(cognito, phone, challenge, code.trim());
         if ("needsNewCode" in result) {
@@ -57,10 +60,11 @@ export default function Login() {
           return;
         }
         token = result.idToken;
+        refresh = result.refreshToken ? { ...cognito, refreshToken: result.refreshToken } : undefined;
       } else {
         token = (await call(api.POST("/api/v1/auth/otp/verify", { body: { phone, code: code.trim() } }))).accessToken;
       }
-      await signIn(token);
+      await signIn(token, refresh);
       router.replace("/");
     });
 
@@ -72,9 +76,11 @@ export default function Login() {
             <View style={s.mark} />
             <Text style={s.brand}>PMD</Text>
           </View>
-          <Pressable onPress={() => setLocale(locale === "es" ? "en" : "es")} accessibilityRole="button">
-            <Text style={s.lang}>{locale === "es" ? "English" : "Español"}</Text>
-          </Pressable>
+          {isEnabled("english") && (
+            <Pressable onPress={() => setLocale(locale === "es" ? "en" : "es")} accessibilityRole="button">
+              <Text style={s.lang}>{locale === "es" ? "English" : "Español"}</Text>
+            </Pressable>
+          )}
         </View>
         <Text style={s.art}>{t("login.art")}</Text>
         <View style={s.panel}>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { Body, Button, Choice, ErrorNotice, Field, Muted, Notice, Screen, Section, StatusTag } from "@/components/ui";
 import { api, call, uploadMultipart, type Schemas } from "@/lib/api";
-import { takePhoto } from "@/lib/capture";
+import { DOCUMENT_PHOTO_MAX_EDGE, takePhoto } from "@/lib/capture";
 import { useAction } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
@@ -50,7 +50,10 @@ function OnboardingForm({ initial }: { initial: Application }) {
 
   const capture = (kind: DocKind) =>
     action.run(async () => {
-      const photo = await takePhoto(kind === "SELFIE");
+      // Documents keep more detail so their text can be read; a selfie needs only the face.
+      const photo = await takePhoto(
+        kind === "SELFIE" ? { front: true } : { maxEdge: DOCUMENT_PHOTO_MAX_EDGE },
+      );
       if (!photo) return;
       await uploadMultipart("/api/v1/onboarding/me/documents", photo, { kind });
       setApp(await call(api.GET("/api/v1/onboarding/me")));
