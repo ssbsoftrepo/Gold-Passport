@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
@@ -5,6 +6,7 @@ import { Body, Button, ErrorNotice, Field, Muted, Notice, Row, Screen, Section, 
 import { api, call } from "@/lib/api";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { useAction, useScreenData } from "@/lib/hooks";
+import { isEnabled } from "@/lib/features";
 import { useI18n } from "@/lib/i18n";
 import { currentReading } from "@/lib/location";
 import { useOutbox } from "@/lib/outbox";
@@ -16,7 +18,9 @@ type GpsStep = "depart" | "arrive-at-miner" | "pickup" | "location" | "arrive-at
  * The transporter's journey. Each step records GPS and is queued offline if there is no signal;
  * the backend enforces the order and the hand-off rules.
  */
-export default function TransportDetail() {
+export default gated("transport", TransportDetail);
+
+function TransportDetail() {
   const { transportId } = useLocalSearchParams<{ transportId: string }>();
   const { t, locale } = useI18n();
   const outbox = useOutbox();
@@ -24,8 +28,9 @@ export default function TransportDetail() {
   const [queued, setQueued] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
-  const { data: tr, error, loading, reload, setData } = useScreenData(() =>
-    call(api.GET("/api/v1/transports/{transportId}", { params: { path: { transportId } } })),
+  const { data: tr, error, loading, reload, setData, staleSince } = useScreenData(
+    () => call(api.GET("/api/v1/transports/{transportId}", { params: { path: { transportId } } })),
+    `transport:${transportId}`,
   );
 
   if (!tr) {
@@ -76,7 +81,7 @@ export default function TransportDetail() {
         <Stamp size={type.hero}>{tr.code}</Stamp>
         <StatusTag status={tr.status} />
       </View>
-      <ErrorNotice error={action.error} />
+      <ErrorNotice error={action.error ?? error} staleSince={action.error ? null : staleSince} />
       {(queued || pendingHere) && <Notice kind="wait">{t("common.offlineSaved")}</Notice>}
 
       <Section>
@@ -103,12 +108,14 @@ export default function TransportDetail() {
           {tr.status === "EN_ROUTE_TO_MINER" && (
             <>
               <Button label={t("transport.arriveMiner")} onPress={() => gpsStep("arrive-at-miner", t("transport.arriveMiner"))} busy={action.pending} />
-              <Button label={t("transport.ping")} variant="quiet" onPress={() => gpsStep("location", t("transport.ping"))} />
+              {isEnabled("locationPings") && (
+                <Button label={t("transport.ping")} variant="quiet" onPress={() => gpsStep("location", t("transport.ping"))} />
+              )}
             </>
           )}
           {tr.status === "AT_MINER" && (
             <>
-              {tr.locationMismatch && tr.arrivalDistanceKm !== null && (
+              {isEnabled("locationMismatch") && tr.locationMismatch && tr.arrivalDistanceKm !== null && (
                 <Notice kind="bad">{t("transport.mismatch", { km: formatNumber(tr.arrivalDistanceKm, locale) })}</Notice>
               )}
               <Muted>{tr.pickupApprovedAt ? "✓" : "…"} {t("transport.pickupApproved")}</Muted>
@@ -121,7 +128,9 @@ export default function TransportDetail() {
           {tr.status === "IN_TRANSIT" && (
             <>
               <Button label={t("transport.arriveCollector")} onPress={() => gpsStep("arrive-at-collector", t("transport.arriveCollector"))} busy={action.pending} />
-              <Button label={t("transport.ping")} variant="quiet" onPress={() => gpsStep("location", t("transport.ping"))} />
+              {isEnabled("locationPings") && (
+                <Button label={t("transport.ping")} variant="quiet" onPress={() => gpsStep("location", t("transport.ping"))} />
+              )}
             </>
           )}
           {tr.status === "ARRIVED_AT_COLLECTOR" && <Body>{t("transport.waitReceive")}</Body>}

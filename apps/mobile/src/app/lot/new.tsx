@@ -1,3 +1,4 @@
+import { gated } from "@/components/ComingSoon";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Button, ErrorNotice, Field, Screen, Section } from "@/components/ui";
@@ -5,7 +6,9 @@ import { api, call } from "@/lib/api";
 import { useAction } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 
-export default function NewLot() {
+export default gated("batches", NewLot);
+
+function NewLot() {
   const { t } = useI18n();
   const [site, setSite] = useState("");
   const [description, setDescription] = useState("");
