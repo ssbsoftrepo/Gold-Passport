@@ -77,7 +77,9 @@ Ordered by priority.
    onboarding.
 7. Device integrity (Play Integrity / App Attest) on evidence uploads.
 8. Legal: privacy notice and consent (Ley 29733), evidence retention period, terms for plants.
-9. Observability: structured logs, CloudWatch alarms, a dashboard of lots by status.
+9. Observability: server metrics, CloudWatch alarms and a dashboard are in place
+   ([monitoring.md](monitoring.md)); still to do: crash reporting in the apps, an outside uptime
+   check of the public passport, and a business dashboard of lots by status.
 
 **Product questions to confirm with the business**
 
