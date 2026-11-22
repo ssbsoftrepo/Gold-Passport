@@ -9,26 +9,28 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.pmd.goldpassport.identity.internal.IdentityProperties;
-import com.pmd.goldpassport.identity.internal.OtpService;
+import com.pmd.goldpassport.identity.internal.LocalPinService;
 import com.pmd.goldpassport.identity.web.IdentityDtos.AuthConfig;
-import com.pmd.goldpassport.identity.web.IdentityDtos.OtpChallenge;
-import com.pmd.goldpassport.identity.web.IdentityDtos.OtpRequest;
-import com.pmd.goldpassport.identity.web.IdentityDtos.OtpVerifyRequest;
+import com.pmd.goldpassport.identity.web.IdentityDtos.NewPinRequest;
+import com.pmd.goldpassport.identity.web.IdentityDtos.PinSignInRequest;
 import com.pmd.goldpassport.identity.web.IdentityDtos.TokenResponse;
 import com.pmd.goldpassport.identity.web.IdentityDtos.UserProfile;
-import com.pmd.goldpassport.shared.ApiException;
 
 import jakarta.validation.Valid;
 
+/**
+ * Phone number + PIN sign-in. In Amazon Cognito mode the apps talk to Cognito directly and the
+ * {@code /pin} endpoints answer 404; {@code /config} tells the apps which mode is active.
+ */
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController {
 
-    private final OtpService otp;
+    private final LocalPinService pins;
     private final IdentityProperties props;
 
-    AuthController(OtpService otp, IdentityProperties props) {
-        this.otp = otp;
+    AuthController(LocalPinService pins, IdentityProperties props) {
+        this.pins = pins;
         this.props = props;
     }
 
@@ -40,26 +42,26 @@ class AuthController {
         return new AuthConfig("cognito", props.cognito().region(), props.cognito().clientId());
     }
 
-    @PostMapping("/otp/request")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    OtpChallenge request(@Valid @RequestBody OtpRequest body) {
-        requireLocalMode();
-        OtpService.Issued issued = otp.request(body.phone());
-        return new OtpChallenge(issued.expiresInSeconds(), issued.devCode());
+    @PostMapping("/pin/sign-up")
+    @ResponseStatus(HttpStatus.CREATED)
+    TokenResponse signUp(@Valid @RequestBody PinSignInRequest body) {
+        LocalModeOnly.require(props);
+        return token(pins.signUp(body.phone(), body.pin()));
     }
 
-    @PostMapping("/otp/verify")
-    TokenResponse verify(@Valid @RequestBody OtpVerifyRequest body) {
-        requireLocalMode();
-        OtpService.LoggedIn result = otp.verify(body.phone(), body.code());
+    @PostMapping("/pin/sign-in")
+    TokenResponse signIn(@Valid @RequestBody PinSignInRequest body) {
+        LocalModeOnly.require(props);
+        return token(pins.signIn(body.phone(), body.pin()));
+    }
+
+    @PostMapping("/pin/new")
+    TokenResponse replaceTemporary(@Valid @RequestBody NewPinRequest body) {
+        LocalModeOnly.require(props);
+        return token(pins.replaceTemporary(body.phone(), body.temporaryPin(), body.newPin()));
+    }
+
+    private static TokenResponse token(LocalPinService.LoggedIn result) {
         return new TokenResponse(result.accessToken(), "Bearer", result.expiresInSeconds(), UserProfile.of(result.user()));
-    }
-
-    private void requireLocalMode() {
-        if (!props.isLocal()) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_AVAILABLE",
-                    "OTP login is handled by Amazon Cognito in this environment") {
-            };
-        }
     }
 }

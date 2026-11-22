@@ -61,11 +61,21 @@ public class ApiClient {
         return base + check;
     }
 
-    /** OTP login (local mode with expose-code=true returns the code). Returns the bearer token. */
+    /** The PIN every test account gets (6 digits, not a run or a repeated digit). */
+    public static final String TEST_PIN = "246813";
+
+    /** Signs in with {@link #TEST_PIN}, creating the account on first use. Returns the bearer token. */
     public String login(String phone) throws Exception {
-        Response challenge = send(MockMvcRequestBuilders.post("/api/v1/auth/otp/request"), null, Map.of("phone", phone));
-        String code = challenge.body().get("devCode").asString();
-        Response token = send(MockMvcRequestBuilders.post("/api/v1/auth/otp/verify"), null, Map.of("phone", phone, "code", code));
+        Response signUp = send(MockMvcRequestBuilders.post("/api/v1/auth/pin/sign-up"), null,
+                Map.of("phone", phone, "pin", TEST_PIN));
+        if (signUp.status() == 201) {
+            return signUp.body().get("accessToken").asString();
+        }
+        Response token = send(MockMvcRequestBuilders.post("/api/v1/auth/pin/sign-in"), null,
+                Map.of("phone", phone, "pin", TEST_PIN));
+        if (token.status() != 200) {
+            throw new IllegalStateException("Sign-in failed for " + phone + ": " + token.body());
+        }
         return token.body().get("accessToken").asString();
     }
 

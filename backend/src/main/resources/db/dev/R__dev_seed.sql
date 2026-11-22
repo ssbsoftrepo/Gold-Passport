@@ -1,8 +1,8 @@
--- Demo data for the `local` profile only (never deployed). Log in with these phones and OTP 123456:
---   +51900000001  PMD back office (ADMIN)          -> web app
---   +51900000002  Rosa Quispe (MINER)              -> mobile app
---   +51900000003  Jorge Mamani (TRANSPORTER)       -> mobile app
---   +51900000004  Planta Aurifera Sur SAC (COLLECTOR) -> web app
+-- Demo data for the `local` profile only (never deployed). Sign in with these phones:
+--   +51900000001  PMD back office (ADMIN)          -> web app, password pmd-demo-2026
+--   +51900000002  Rosa Quispe (MINER)              -> mobile app, PIN 135790
+--   +51900000003  Jorge Mamani (TRANSPORTER)       -> mobile app, PIN 135790
+--   +51900000004  Planta Aurifera Sur SAC (COLLECTOR) -> web app, PIN 135790
 -- The transporter already has approved relationships with the miner and the collector, so a full
 -- lot -> transport -> lab -> settlement run can start immediately.
 
@@ -13,6 +13,15 @@ values
     ('00000000-0000-0000-0000-000000000003', '+51900000003', 'jorge.mamani@example.pe', 'Jorge Mamani', 'TRANSPORTER', 'es', '00000000-0000-0000-0000-000000000003', 'ACTIVE', now(), now(), 0),
     ('00000000-0000-0000-0000-000000000004', '+51900000004', 'compras@plantasur.example.pe', 'Planta Aurifera Sur SAC', 'COLLECTOR', 'es', '00000000-0000-0000-0000-000000000004', 'ACTIVE', now(), now(), 0)
 on conflict (id) do nothing;
+
+-- BCrypt hashes of the demo PIN 135790 and the demo staff password pmd-demo-2026.
+insert into identity.local_credentials (user_id, secret_hash, updated_at)
+values
+    ('00000000-0000-0000-0000-000000000001', '$2a$10$oJ8GyQCpQFSc0A0DHgxN3Oh5RvjAnoBbeX1gf0kR5cQn/S.PK3mcq', now()),
+    ('00000000-0000-0000-0000-000000000002', '$2a$10$gBmK7H50gTGIoSom3Ly//.vLQFXv6J0SHyxYCjLq2jOSnvZQczJGS', now()),
+    ('00000000-0000-0000-0000-000000000003', '$2a$10$gBmK7H50gTGIoSom3Ly//.vLQFXv6J0SHyxYCjLq2jOSnvZQczJGS', now()),
+    ('00000000-0000-0000-0000-000000000004', '$2a$10$gBmK7H50gTGIoSom3Ly//.vLQFXv6J0SHyxYCjLq2jOSnvZQczJGS', now())
+on conflict (user_id) do nothing;
 
 insert into onboarding.applications (id, user_id, role, status, phone, full_name, document_type, document_number, email,
                                      driver_license_number, vehicle_plate, company_name, ruc, company_address,

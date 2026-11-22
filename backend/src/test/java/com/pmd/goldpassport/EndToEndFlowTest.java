@@ -257,12 +257,12 @@ class EndToEndFlowTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void wrongOtpIsRejected() throws Exception {
+    void wrongPinIsRejected() throws Exception {
         String phone = ApiClient.randomPhone();
-        api.post(null, "/api/v1/auth/otp/request", Map.of("phone", phone));
-        Response r = api.post(null, "/api/v1/auth/otp/verify", Map.of("phone", phone, "code", "000001"));
+        api.login(phone);
+        Response r = api.post(null, "/api/v1/auth/pin/sign-in", Map.of("phone", phone, "pin", "975318"));
         assertThat(r.status()).isEqualTo(401);
-        assertThat(r.body().get("code").asString()).isEqualTo("OTP_INVALID");
+        assertThat(r.body().get("code").asString()).isEqualTo("INVALID_CREDENTIALS");
     }
 
     private static Response ok(Response r) {

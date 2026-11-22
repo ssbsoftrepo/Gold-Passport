@@ -120,6 +120,10 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>rekognition</artifactId>
         </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>cognitoidentityprovider</artifactId>
+        </dependency>
 
         <!-- Tests -->
         <dependency>

@@ -158,8 +158,8 @@ class IdempotencyFilterTest {
         run(post("/api/v1/lots/1/photos", null), respond(201, "{}"));
         run(post("/api/v1/lots/1/photos", null), respond(201, "{}"));
         SecurityContextHolder.clearContext();
-        run(post("/api/v1/auth/otp/request", "k-7"), respond(200, "{}"));
-        run(post("/api/v1/auth/otp/request", "k-7"), respond(200, "{}"));
+        run(post("/api/v1/auth/pin/sign-in", "k-7"), respond(200, "{}"));
+        run(post("/api/v1/auth/pin/sign-in", "k-7"), respond(200, "{}"));
 
         assertThat(executions).hasValue(4);
         assertThat(store.rows).isEmpty();

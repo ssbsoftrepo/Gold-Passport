@@ -41,7 +41,7 @@ paths:
     get:
       tags: [auth]
       operationId: getAuthConfig
-      summary: How clients should authenticate (local OTP or Amazon Cognito)
+      summary: How clients should authenticate (local PIN sign-in or Amazon Cognito)
       security: []
       responses:
         '200':
@@ -49,36 +49,44 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AuthConfig' }
-  /api/v1/auth/otp/request:
+  /api/v1/auth/pin/sign-up:
     post:
       tags: [auth]
-      operationId: requestOtp
-      summary: Request a one-time login code (local auth mode only)
+      operationId: signUpWithPin
+      summary: Create an account with a phone number and a 6-digit PIN (local auth mode only; no SMS)
+      description: |
+        PIN rules: 6 digits, not all the same and not a run (123456, 987654). PMD staff may use a
+        password of 10+ characters instead. In Amazon Cognito mode the apps call Cognito SignUp.
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/OtpRequest' }
+            schema: { $ref: '#/components/schemas/PinSignInRequest' }
       responses:
-        '202':
-          description: Code issued
+        '201':
+          description: Account created and signed in
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/OtpChallenge' }
+              schema: { $ref: '#/components/schemas/TokenResponse' }
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
-  /api/v1/auth/otp/verify:
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/pin/sign-in:
     post:
       tags: [auth]
-      operationId: verifyOtp
-      summary: Exchange a one-time code for an access token (local auth mode only)
+      operationId: signInWithPin
+      summary: Exchange a phone number and PIN for an access token (local auth mode only)
+      description: |
+        401 INVALID_CREDENTIALS for a wrong PIN or an unknown phone (the same answer for both).
+        429 TOO_MANY_ATTEMPTS after repeated wrong PINs. 409 PIN_CHANGE_REQUIRED when the PIN is a
+        temporary one from a PMD reset: replace it with POST /api/v1/auth/pin/new.
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/OtpVerifyRequest' }
+            schema: { $ref: '#/components/schemas/PinSignInRequest' }
       responses:
         '200':
           description: Authenticated
@@ -87,6 +95,31 @@ paths:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '400': { $ref: '#/components/responses/Problem' }
         '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/pin/new:
+    post:
+      tags: [auth]
+      operationId: replaceTemporaryPin
+      summary: Sign in with a temporary PIN from a PMD reset and choose a new one (local auth mode only)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewPinRequest' }
+      responses:
+        '200':
+          description: New PIN set, authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
 
   # ------------------------------------------------------------------ me
   /api/v1/me:
@@ -131,6 +164,25 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UserProfile' }
         '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/me/pin:
+    put:
+      tags: [me]
+      operationId: changeMyPin
+      summary: Change the PIN after confirming the current one (local auth mode only; Cognito apps use ChangePassword)
+      description: PMD staff (ADMIN) need a password of 10+ characters (400 PASSWORD_TOO_SHORT).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePinRequest' }
+      responses:
+        '204':
+          description: PIN changed
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
 
   /api/v1/participants:
     get:
@@ -308,6 +360,28 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/UserProfile' }
+
+  /api/v1/admin/users/{userId}/reset-pin:
+    post:
+      tags: [admin]
+      operationId: adminResetPin
+      summary: Give someone who forgot their PIN a temporary one (no SMS)
+      description: |
+        The temporary PIN (PMD staff: a 12-character password) is returned once, for PMD to pass on
+        in person or by phone. It works for 7 days and must be replaced at the next sign-in. The
+        account is signed out on every device. 409 CANNOT_RESET_OWN_PIN for your own account,
+        409 NO_ACCOUNT_YET when the person never created their account (Cognito mode).
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Temporary PIN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemporaryPin' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
 
   # ------------------------------------------------------------------ files
   /api/v1/files/{fileId}:
@@ -1226,23 +1300,31 @@ components:
         mode: { type: string, enum: [local, cognito] }
         cognitoRegion: { type: string, nullable: true }
         cognitoClientId: { type: string, nullable: true }
-    OtpRequest:
+    PinSignInRequest:
       type: object
-      required: [phone]
+      required: [phone, pin]
       properties:
         phone: { type: string, description: 'E.164, e.g. +51987654321', example: '+51987654321' }
-    OtpChallenge:
+        pin: { type: string, maxLength: 128, description: '6-digit PIN, or a password of 10+ characters for PMD staff', example: '135790' }
+    NewPinRequest:
       type: object
-      required: [expiresInSeconds, devCode]
-      properties:
-        expiresInSeconds: { type: integer }
-        devCode: { type: string, nullable: true, description: Only returned when pmd.auth.local.expose-code=true (local development) }
-    OtpVerifyRequest:
-      type: object
-      required: [phone, code]
+      required: [phone, temporaryPin, newPin]
       properties:
         phone: { type: string }
-        code: { type: string }
+        temporaryPin: { type: string, maxLength: 128 }
+        newPin: { type: string, maxLength: 128 }
+    ChangePinRequest:
+      type: object
+      required: [currentPin, newPin]
+      properties:
+        currentPin: { type: string, maxLength: 128 }
+        newPin: { type: string, maxLength: 128 }
+    TemporaryPin:
+      type: object
+      required: [temporaryPin, expiresAt]
+      properties:
+        temporaryPin: { type: string, description: Shown once; never stored or logged in clear }
+        expiresAt: { type: string, format: date-time }
     TokenResponse:
       type: object
       required: [accessToken, tokenType, expiresIn, user]

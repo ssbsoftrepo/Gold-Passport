@@ -94,16 +94,17 @@ pmd:
       # Override in every shared environment! (>= 32 bytes)
       jwt-secret: ${PMD_LOCAL_JWT_SECRET:dev-only-secret-change-me-please-0123456789}
       token-ttl: 12h
-      otp-ttl: 5m
-      fixed-otp: ${PMD_LOCAL_FIXED_OTP:}
-      expose-code: ${PMD_LOCAL_EXPOSE_CODE:false}
+      # Wrong PINs in a row before the account is locked for a while.
       max-attempts: 5
-      max-requests-per-window: 5
-      request-window: 15m
+      lockout: 15m
     cognito:
       issuer-uri: ${PMD_COGNITO_ISSUER_URI:}
       region: ${PMD_COGNITO_REGION:}
       client-id: ${PMD_COGNITO_CLIENT_ID:}
+      # Used only to reset a forgotten PIN (AdminSetUserPassword).
+      user-pool-id: ${PMD_COGNITO_USER_POOL_ID:}
+    # A temporary PIN from a PMD reset works this long (the Cognito pool uses the same 7 days).
+    temporary-pin-ttl: 7d
   storage:
     provider: ${PMD_STORAGE_PROVIDER:local}
     local-dir: ${PMD_STORAGE_LOCAL_DIR:./data/storage}
