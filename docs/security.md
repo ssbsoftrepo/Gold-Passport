@@ -109,12 +109,10 @@ Accepted today (each entry expires on the date in `osv-scanner.toml`: 2027-01-26
 | [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high) | zod 3.25, in `@expo/cli` | Fixed only in zod 4, which the Expo command-line tool does not support; it runs at build time on our own project files, not in the app on phones. Revisit with the next Expo SDK |
 | [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) (medium) | glob 13, in the Expo config tools | Fixed only in glob 14, which Expo SDK 58 does not use; it finds our own project files at build time, never with untrusted input |
 | [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) (medium) | minimatch 10, in Expo, typescript-eslint, eslint-config-next and aws-cdk-lib | Fixed only in minimatch 11; build, lint and CDK synth tools only, with patterns from our own config. Update aws-cdk-lib to 2.278.0 or later in `infra/` |
-| [GHSA-j9f9-w8pj-32f8](https://github.com/advisories/GHSA-j9f9-w8pj-32f8) (critical) | Spring Framework 6.2 `spring-webmvc` | Needs Server-Sent Events with view fragments; the backend is a JSON API with neither. No open-source 6.2 fix; gone with the Spring Boot 4 upgrade (Spring Framework 7.0.9) |
-| [GHSA-pc63-qcmh-9cmg](https://github.com/advisories/GHSA-pc63-qcmh-9cmg) (critical) | Spring Framework 6.2 `spring-webmvc` | Needs `XsltView`; the backend renders no views. Same fix as above |
 
-Spring Boot manages most backend versions; `backend/pom.xml` overrides a few (Tomcat, Jackson,
-Netty, the PostgreSQL driver, Log4j API, Commons Lang, Commons Compress) where security fixes are
-newer than the Spring Boot release. Remove an override once Spring Boot manages the same or newer.
+Spring Boot 4.1 manages the backend versions; `backend/pom.xml` has no version overrides today. When
+a security fix is newer than the Spring Boot release, add an override there, and remove it once
+Spring Boot manages the same or newer.
 
 ## Hardening backlog
 

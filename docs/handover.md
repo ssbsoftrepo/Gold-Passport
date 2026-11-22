@@ -8,7 +8,7 @@ first weeks.
 A working end-to-end implementation of the four PMD flows (Miner, Transport, Collector/Plant, gold
 purity pipeline):
 
-- **Backend** (`backend/`): Spring Boot 3.5 modular monolith with 12 modules, 71 REST endpoints,
+- **Backend** (`backend/`): Spring Boot 4.1 modular monolith with 12 modules, 71 REST endpoints,
   PostgreSQL schema per module (Flyway), hash-chained custody ledger, async notifications with a
   durable outbox, AWS adapters (Cognito, S3, Rekognition, SNS) with local stubs, demo data.
 - **Web** (`apps/web/`): PMD back office (identity checks, relationships, lots, transports, lab
@@ -62,8 +62,8 @@ Ordered by priority.
 
 1. Backend: first `mvn verify`, fix compile/wiring issues, run the demo walkthrough end to end with
    the web and mobile apps on an emulator.
-2. Upgrade path: Spring Boot 3.5 open-source support ends around mid-2026; plan Spring Boot 4 /
-   Spring Modulith 2 (Jackson 3, moved test annotations). Add the Maven wrapper (`mvn -N wrapper:wrapper`).
+2. ~~Upgrade path to Spring Boot 4 / Spring Modulith 2~~ done (ADR-007). Still to do: add the
+   Maven wrapper (`mvn -N wrapper:wrapper`).
 3. Deploy staging with the one-click workflow (deploy.md: AWS CDK in `infra/`); add SNS push;
    validate the Cognito passwordless flow in both apps.
 4. Mobile: field trial on real phones at a real mine (low-end devices, poor signal): offline outbox,
