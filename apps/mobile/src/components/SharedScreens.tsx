@@ -11,11 +11,11 @@ import { Body, Button, Choice, ErrorNotice, ListItem, Muted, Notice, Row, Screen
 
 export function InboxScreen() {
   const { t, locale } = useI18n();
-  const { data, error, loading, reload } = useScreenData(() => call(api.GET("/api/v1/notifications", {})));
+  const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/notifications", {})), "notifications");
   const action = useAction();
   return (
     <Screen title={t("inbox.title")} refreshing={loading} onRefresh={reload}>
-      <ErrorNotice error={error ?? action.error} />
+      <ErrorNotice error={error ?? action.error} staleSince={error ? staleSince : null} />
       {data && data.length === 0 && <Notice>{t("inbox.empty")}</Notice>}
       {data && data.some((n) => !n.read) && (
         <Button label={t("inbox.markAll")} variant="quiet"
@@ -35,7 +35,8 @@ export function InboxScreen() {
 export function ProfileScreen() {
   const { t, locale, setLocale } = useI18n();
   const { user, signOut } = useSession();
-  const { items, syncing, syncNow, discard } = useOutbox();
+  const { items, syncing, needsSignIn, syncNow, discard } = useOutbox();
+  const waiting = items.some((i) => !i.error);
 
   const changeLocale = (l: "es" | "en") => {
     setLocale(l);
@@ -54,6 +55,8 @@ export function ProfileScreen() {
           options={[{ value: "es", label: "Español" }, { value: "en", label: "English" }]} onChange={changeLocale} />
       </Section>
       <Section title={t("profile.outbox")}>
+        {needsSignIn && <Notice kind="bad">{t("profile.signInToSend")}</Notice>}
+        {waiting && !needsSignIn && !syncing && <Muted>{t("profile.waitingForSignal")}</Muted>}
         {items.length === 0 ? (
           <Muted>{t("profile.outboxEmpty")}</Muted>
         ) : (

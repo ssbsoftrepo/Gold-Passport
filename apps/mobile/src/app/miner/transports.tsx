@@ -11,17 +11,17 @@ import { space } from "@/lib/theme";
 /** Transport requests addressed to the miner: confirm with a lot, decline, hand over at the mine. */
 export default function MinerTransports() {
   const { t } = useI18n();
-  const { data, error, loading, reload } = useScreenData(async () => {
+  const { data, error, loading, reload, staleSince } = useScreenData(async () => {
     const [transports, ready] = await Promise.all([
       call(api.GET("/api/v1/transports", {})),
       call(api.GET("/api/v1/lots", { params: { query: { status: "READY_FOR_TRANSPORT" } } })),
     ]);
     return { transports, ready };
-  });
+  }, "miner-transports");
 
   return (
     <Screen title={t("transports.title")} refreshing={loading} onRefresh={reload}>
-      <ErrorNotice error={error} />
+      <ErrorNotice error={error} staleSince={staleSince} />
       {data && data.transports.length === 0 && <Notice>{t("transports.empty")}</Notice>}
       {data?.transports.map((tr) => <TransportRequest key={tr.id} tr={tr} readyLots={data.ready} onChanged={reload} />)}
     </Screen>

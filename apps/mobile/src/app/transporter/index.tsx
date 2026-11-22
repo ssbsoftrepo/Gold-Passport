@@ -9,11 +9,11 @@ import { space } from "@/lib/theme";
 
 export default function TransporterHome() {
   const { t, locale } = useI18n();
-  const { data, error, loading, reload } = useScreenData(() => call(api.GET("/api/v1/transports", {})));
+  const { data, error, loading, reload, staleSince } = useScreenData(() => call(api.GET("/api/v1/transports", {})), "transports");
   return (
     <Screen title={t("transports.title")} refreshing={loading} onRefresh={reload}>
       <Button label={t("transports.new")} onPress={() => router.push("/transport/new")} />
-      <ErrorNotice error={error} />
+      <ErrorNotice error={error} staleSince={staleSince} />
       {data && data.length === 0 && <Notice>{t("transports.empty")}</Notice>}
       {data?.map((tr) => (
         <ListItem key={tr.id} onPress={() => router.push({ pathname: "/transport/[transportId]", params: { transportId: tr.id } })}>

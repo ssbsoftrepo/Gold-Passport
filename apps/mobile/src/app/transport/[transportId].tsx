@@ -24,8 +24,9 @@ export default function TransportDetail() {
   const [queued, setQueued] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
-  const { data: tr, error, loading, reload, setData } = useScreenData(() =>
-    call(api.GET("/api/v1/transports/{transportId}", { params: { path: { transportId } } })),
+  const { data: tr, error, loading, reload, setData, staleSince } = useScreenData(
+    () => call(api.GET("/api/v1/transports/{transportId}", { params: { path: { transportId } } })),
+    `transport:${transportId}`,
   );
 
   if (!tr) {
@@ -76,7 +77,7 @@ export default function TransportDetail() {
         <Stamp size={type.hero}>{tr.code}</Stamp>
         <StatusTag status={tr.status} />
       </View>
-      <ErrorNotice error={action.error} />
+      <ErrorNotice error={action.error ?? error} staleSince={action.error ? null : staleSince} />
       {(queued || pendingHere) && <Notice kind="wait">{t("common.offlineSaved")}</Notice>}
 
       <Section>

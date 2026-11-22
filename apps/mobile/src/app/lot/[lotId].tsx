@@ -17,8 +17,9 @@ export default function LotDetail() {
   const { lotId } = useLocalSearchParams<{ lotId: string }>();
   const { t, locale } = useI18n();
   const outbox = useOutbox();
-  const { data: lot, error, loading, reload, setData } = useScreenData(() =>
-    call(api.GET("/api/v1/lots/{lotId}", { params: { path: { lotId } } })),
+  const { data: lot, error, loading, reload, setData, staleSince } = useScreenData(
+    () => call(api.GET("/api/v1/lots/{lotId}", { params: { path: { lotId } } })),
+    `lot:${lotId}`,
   );
   const action = useAction();
   const [queued, setQueued] = useState(false);
@@ -78,7 +79,7 @@ export default function LotDetail() {
         <StatusTag status={lot.status} />
         <Muted>{t("lot.passportHint")}</Muted>
       </View>
-      <ErrorNotice error={action.error} />
+      <ErrorNotice error={action.error ?? error} staleSince={action.error ? null : staleSince} />
       {queued && <Notice kind="wait">{t("common.offlineSaved")}</Notice>}
       <PendingBanner scope={`lot:${lot.id}`} />
 

@@ -66,6 +66,14 @@ data).
 device times within a clock-skew limit and keeps its own receipt time. Business rejections of a
 queued action are shown to the user rather than retried.
 
+**Weak signal (amendment).** A weak signal is worse than none: requests hang, or succeed while the
+answer is lost. So every request has a deadline (20 s; uploads scale with file size), timeouts and
+server errors (5xx, 408, 429) are retried on a backoff timer (10 s doubling to 5 min) as well as when
+the network comes back, and each queued action carries an `Idempotency-Key` that the backend uses to
+return the first result for a repeat instead of applying it twice. Screens keep their last data on
+the device and show when it was saved; the app opens from the cached profile. A 401 pauses the outbox
+until the user signs in again rather than failing the queued items.
+
 ## ADR-007: Spring Boot 3.5 line
 
 **Context.** Code was written without access to Maven Central, so only APIs known to be stable were
