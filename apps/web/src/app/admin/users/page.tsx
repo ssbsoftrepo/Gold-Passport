@@ -54,8 +54,12 @@ export default function AdminUsers() {
         <section className="panel stack" role="status" aria-live="polite">
           <h2>{t(staff(reset.user) ? "admin.users.passwordResetTitle" : "admin.users.pinResetTitle", { name: name(reset.user) })}</h2>
           <p className="temporary-pin">{reset.pin.temporaryPin}</p>
-          <p>{t("admin.users.resetBody", { phone: reset.user.phone, date: formatDateTime(reset.pin.expiresAt, locale) })}</p>
-          <p className="muted">{t("admin.users.resetOnce")}</p>
+          <p>{t("admin.users.resetBody", { phone: reset.user.phone })}</p>
+          <p className="muted">
+            {t("admin.users.resetValid", { date: formatDateTime(reset.pin.expiresAt, locale) })}
+            <br />
+            {t("admin.users.resetOnce")}
+          </p>
           <button type="button" className="link-button" style={{ alignSelf: "flex-start" }} onClick={() => setReset(null)}>
             {t("admin.users.resetDone")}
           </button>
@@ -86,7 +90,7 @@ export default function AdminUsers() {
                   <td className="muted">{formatDateTime(u.createdAt, locale)}</td>
                   <td>
                     {u.id !== me?.id && (
-                      <button type="button" className="link-button" disabled={action.pending} onClick={() => resetPin(u)}>
+                      <button type="button" className="link-button" style={{ whiteSpace: "nowrap" }} disabled={action.pending} onClick={() => resetPin(u)}>
                         {t(staff(u) ? "admin.users.resetPassword" : "admin.users.resetPin")}
                       </button>
                     )}
