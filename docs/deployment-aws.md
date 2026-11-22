@@ -63,6 +63,8 @@ Notes:
 | `PMD_KYC_PROVIDER`, `PMD_KYC_REGION` | `aws` enables Rekognition checks | `aws`, `sa-east-1` |
 | `PMD_PUSH_PROVIDER`, `PMD_PUSH_REGION` | `sns` enables push | `sns` |
 | `PMD_SNS_ANDROID_ARN`, `PMD_SNS_IOS_ARN` | SNS platform application ARNs | `arn:aws:sns:...:app/GCM/pmd-android` |
+| `PMD_METRICS_CLOUDWATCH_ENABLED`, `PMD_METRICS_CLOUDWATCH_NAMESPACE` | Metrics for the alarms ([monitoring.md](monitoring.md)) | `true`, `GoldPassport/prod` |
+| `LOGGING_STRUCTURED_FORMAT_CONSOLE` | JSON logs for CloudWatch Logs Insights | `ecs` |
 | `pmd.auth.cors-allowed-origins` | Web origin(s); set `PMD_AUTH_CORSALLOWEDORIGINS_0=https://app.example.pe` (Spring list binding) | |
 
 AWS credentials come from the ECS task role (no keys in configuration). Task role permissions:
@@ -73,6 +75,7 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
   and a warning is logged.
 - `rekognition:CompareFaces`, `rekognition:DetectText`
 - `sns:CreatePlatformEndpoint`, `sns:Publish` on the platform applications
+- `cloudwatch:PutMetricData`, limited to the environment's namespace (see [monitoring.md](monitoring.md))
 
 ## Amazon Cognito
 
@@ -80,6 +83,15 @@ AWS credentials come from the ECS task role (no keys in configuration). Task rol
   needs the Essentials (or Plus) feature plan.
 - Phone number as the username; attribute `phone_number` required.
 - App client without secret, auth flow `ALLOW_USER_AUTH` (plus `ALLOW_REFRESH_TOKEN_AUTH`).
+- **Refresh token validity** decides how long a phone can stay offline (or unused) before the user
+  needs a new SMS code. The mobile app keeps the refresh token in the device keystore and renews the
+  1-hour ID token with it (`GetTokensFromRefreshToken`) before it expires and whenever the API answers
+  401, so a miner who is offline all day still sends their queue in the evening. Cognito's default
+  of 30 days suits field work; shorten it only together with the business. Keep token revocation on
+  (the default): signing out revokes the refresh token.
+- Refresh token rotation is optional and supported. If you turn it on, keep the retry grace period
+  at 60 seconds: on a weak signal the answer carrying the new refresh token can be lost, and the
+  grace period lets the app retry with the old one.
 - SMS delivery uses AWS End User Messaging SMS: request production access and an origination
   identity for Peru before go-live (the sandbox only sends to verified numbers).
 - The apps send the Cognito **ID token** (it carries `phone_number`). The backend validates it
@@ -138,8 +150,8 @@ AWS keys are stored in GitHub. See [deploy.md](deploy.md). The mobile app is bui
 - [ ] Evidence bucket with Object Lock, SSE-KMS, Block Public Access
 - [ ] Separate migration and application DB roles; ledger table insert/select only
 - [ ] WAF rate limiting on `/api/v1/auth/**` and `/api/v1/public/**`
-- [ ] CloudWatch alarms: 5xx rate, p95 latency, DB connections, `event_publication` rows without
-      completion date (stuck notifications)
+- [ ] Alarms and dashboard deployed from `infra/monitoring.yml`, the alarm email confirmed and a
+      test alarm received ([monitoring.md](monitoring.md))
 - [ ] Backups restored once as a drill
 - [ ] Privacy notice and consent text reviewed for Ley 29733; data retention periods agreed
 - [ ] Dependency scan green on `main`; Dependabot alerts and security updates turned on
