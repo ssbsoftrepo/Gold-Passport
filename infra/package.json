@@ -1,0 +1,21 @@
+{
+  "name": "gold-passport-infra",
+  "private": true,
+  "description": "One-click AWS deployment for Gold Passport (AWS CDK).",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "synth": "cdk synth --quiet",
+    "test": "node --import tsx --test test/*.test.ts",
+    "cdk": "cdk"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.275.0",
+    "constructs": "10.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "aws-cdk": "2.1146.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

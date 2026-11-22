@@ -1,0 +1,30 @@
+# Vulnerabilities accepted for now, checked by .github/workflows/dependency-scan.yml.
+# Add an entry only when no fixed version can be used yet; give the reason and an expiry date
+# (90 days at most). When the date passes the scan fails again, so the decision is reviewed.
+# See docs/security.md#dependency-vulnerabilities.
+
+[[IgnoredVulns]]
+id = "GHSA-mrhx-c7xc-m3w5"
+ignoreUntil = 2027-01-26
+reason = """\
+  zod 3.25 (memory exhaustion validating oversized collections), used only by the Expo command-line \
+  tool (@expo/cli) at build time, on our own project files. Fixed only in zod 4, which @expo/cli \
+  does not support. Revisit with the next Expo SDK."""
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-02-20
+reason = """\
+  glob 13 (an aborted search can keep walking the file system), used only at build time by the \
+  Expo config tools (@expo/config, @expo/config-plugins) to find our own project files. Nothing \
+  passes it an AbortSignal or untrusted paths. Fixed only in glob 14, which Expo SDK 58 does not \
+  use. Revisit with the next Expo SDK."""
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-20
+reason = """\
+  minimatch 10 (slow matching of crafted patterns), used only by build and lint tools \
+  (@expo/fingerprint, typescript-eslint, eslint-config-next, and aws-cdk-lib when it synthesizes \
+  infra/) with patterns from our own config. Never runs in the apps or the server. Fixed only in \
+  minimatch 11; aws-cdk-lib 2.278.0 bundles it. Revisit with the next Expo SDK and Next.js release."""

@@ -9,7 +9,7 @@ import { useI18n } from "@/lib/i18n";
 export default function NewTransport() {
   const { t } = useI18n();
   const action = useAction();
-  const { data, error } = useScreenData(() => call(api.GET("/api/v1/relationships")));
+  const { data, error, staleSince } = useScreenData(() => call(api.GET("/api/v1/relationships")), "relationships");
   const [minerUserId, setMiner] = useState<string | null>(null);
   const [collectorUserId, setCollector] = useState<string | null>(null);
   const [date, setDate] = useState("");
@@ -45,7 +45,7 @@ export default function NewTransport() {
 
   return (
     <Screen>
-      <ErrorNotice error={error ?? action.error} />
+      <ErrorNotice error={error ?? action.error} staleSince={error ? staleSince : null} />
       {data && (miners.length === 0 || collectors.length === 0) && <Notice kind="wait">{t("transport.needPartners")}</Notice>}
       <Section>
         <Choice label={t("transport.chooseMiner")} value={minerUserId} options={miners} onChange={setMiner} />

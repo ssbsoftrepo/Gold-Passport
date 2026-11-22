@@ -68,7 +68,7 @@ class LedgerPayloadFormatTest {
         details.put("fileId", UUID.fromString("89a9ce33-7d75-42d6-9822-f5a15bcb332a"));
         details.put("notes", null);
         details.put("nested", Map.of("b", "ñandú", "a", List.of(1, 2)));
-        LedgerService ledger = new LedgerService(null, null, Clock.systemUTC());
+        LedgerService ledger = new LedgerService(null, null, null, Clock.systemUTC());
 
         assertThat(ledger.payload(new Event(details))).isEqualTo("{\"aggregateId\":\"5bd345da-a286-4e97-9586-bae495aecf80\","
                 + "\"aggregateType\":\"lot\",\"details\":{\"fileId\":\"89a9ce33-7d75-42d6-9822-f5a15bcb332a\","

@@ -1,0 +1,488 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  PMD Gold Passport - alarms and dashboard for one environment (see docs/monitoring.md).
+  Deploy once per environment, after the load balancer, ECS service and RDS instance exist.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod
+    AllowedPattern: "[a-z0-9-]+"
+    Description: Used in alarm and dashboard names.
+  AlarmEmail:
+    Type: String
+    Description: Address that receives alarms (confirm the subscription email AWS sends).
+  MetricsNamespace:
+    Type: String
+    Default: GoldPassport/prod
+    Description: The backend's PMD_METRICS_CLOUDWATCH_NAMESPACE.
+  LoadBalancerFullName:
+    Type: String
+    Description: The ALB's full name, e.g. app/pmd-prod/0123456789abcdef (the end of its ARN).
+  TargetGroupFullName:
+    Type: String
+    Description: The backend target group's full name, e.g. targetgroup/pmd-api/0123456789abcdef.
+  EcsClusterName:
+    Type: String
+  EcsServiceName:
+    Type: String
+    Description: The backend's ECS service.
+  DbInstanceId:
+    Type: String
+    Description: The RDS instance identifier.
+  BackendLogGroup:
+    Type: String
+    Description: The CloudWatch Logs group of the backend's containers.
+  HikariPoolName:
+    Type: String
+    Default: HikariPool-1
+    Description: The connection pool's name (Spring Boot's default unless spring.datasource.hikari.pool-name is set).
+  LatencyThresholdSeconds:
+    Type: Number
+    Default: 3
+    Description: Alarm when the 95th percentile response time stays above this. Photo uploads over weak signal are slow, so keep headroom.
+  DbFreeStorageThresholdBytes:
+    Type: Number
+    Default: 5368709120
+    Description: Alarm when the database has less free disk than this (default 5 GiB).
+
+Resources:
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub pmd-${EnvironmentName}-alarms
+      KmsMasterKeyId: alias/aws/sns
+
+  AlarmTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref AlarmTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudWatchAlarms
+            Effect: Allow
+            Principal: { Service: cloudwatch.amazonaws.com }
+            Action: sns:Publish
+            Resource: !Ref AlarmTopic
+            Condition:
+              StringEquals:
+                AWS:SourceAccount: !Ref AWS::AccountId
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  # ------------------------------------------------------------------ API (load balancer)
+
+  ApiErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-api-5xx-rate
+      AlarmDescription: More than 2% of API requests fail with a server error. Runbook - docs/monitoring.md#api-5xx-rate
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 2
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 3
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+      Metrics:
+        - Id: rate
+          Label: 5xx % (when at least 20 requests a minute)
+          Expression: IF(requests >= 20, 100 * errors / requests, 0)
+        - Id: errors
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: AWS/ApplicationELB
+              MetricName: HTTPCode_Target_5XX_Count
+              Dimensions:
+                - { Name: LoadBalancer, Value: !Ref LoadBalancerFullName }
+                - { Name: TargetGroup, Value: !Ref TargetGroupFullName }
+            Period: 60
+            Stat: Sum
+        - Id: requests
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: AWS/ApplicationELB
+              MetricName: RequestCount
+              Dimensions:
+                - { Name: LoadBalancer, Value: !Ref LoadBalancerFullName }
+                - { Name: TargetGroup, Value: !Ref TargetGroupFullName }
+            Period: 60
+            Stat: Sum
+
+  ApiLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-api-latency-p95
+      AlarmDescription: The API's 95th percentile response time is high. Runbook - docs/monitoring.md#api-latency-p95
+      Namespace: AWS/ApplicationELB
+      MetricName: TargetResponseTime
+      Dimensions:
+        - { Name: LoadBalancer, Value: !Ref LoadBalancerFullName }
+        - { Name: TargetGroup, Value: !Ref TargetGroupFullName }
+      ExtendedStatistic: p95
+      Period: 60
+      EvaluationPeriods: 10
+      DatapointsToAlarm: 8
+      Threshold: !Ref LatencyThresholdSeconds
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  ApiDownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-api-no-healthy-backend
+      AlarmDescription: No backend task passes its health check; the API is down. Runbook - docs/monitoring.md#api-no-healthy-backend
+      Namespace: AWS/ApplicationELB
+      MetricName: HealthyHostCount
+      Dimensions:
+        - { Name: LoadBalancer, Value: !Ref LoadBalancerFullName }
+        - { Name: TargetGroup, Value: !Ref TargetGroupFullName }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  # ------------------------------------------------------------------ backend (application metrics)
+
+  DbConnectionsWaitingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-db-connections-waiting
+      AlarmDescription: Requests keep waiting for a database connection; the pool is too small or connections are held too long. Runbook - docs/monitoring.md#db-connections-waiting
+      Namespace: !Ref MetricsNamespace
+      MetricName: hikaricp.connections.pending.value
+      Dimensions:
+        - { Name: pool, Value: !Ref HikariPoolName }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  DbConnectionTimeoutsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-db-connection-timeouts
+      AlarmDescription: Requests failed because no database connection came free in time. Runbook - docs/monitoring.md#db-connections-waiting
+      Namespace: !Ref MetricsNamespace
+      MetricName: hikaricp.connections.timeout.count
+      Dimensions:
+        - { Name: pool, Value: !Ref HikariPoolName }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  NotificationsStuckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-notifications-stuck
+      AlarmDescription: Domain events have waited more than 15 minutes for their listener; users are not being notified. Runbook - docs/monitoring.md#notifications-stuck
+      Namespace: !Ref MetricsNamespace
+      MetricName: pmd.events.stuck.value
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  MetricsMissingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-metrics-missing
+      AlarmDescription: The backend has sent no metrics for 10 minutes, so the alarms above cannot fire. Runbook - docs/monitoring.md#metrics-missing
+      Namespace: !Ref MetricsNamespace
+      MetricName: pmd.events.stuck.value
+      Statistic: SampleCount
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  EvidenceStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-evidence-storage-failing
+      AlarmDescription: Calls to the S3 evidence bucket are failing; photos and documents cannot be saved or shown. Runbook - docs/monitoring.md#evidence-storage-failing
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 3
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+      Metrics:
+        - Id: failures
+          Label: S3 calls rejected or failed
+          Expression: FILL(failed, 0) + FILL(rejected, 0)
+        - Id: failed
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: !Ref MetricsNamespace
+              MetricName: pmd.aws.calls.count
+              Dimensions:
+                - { Name: outcome, Value: failed }
+                - { Name: service, Value: s3 }
+            Period: 300
+            Stat: Sum
+        - Id: rejected
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: !Ref MetricsNamespace
+              MetricName: pmd.aws.calls.count
+              Dimensions:
+                - { Name: outcome, Value: rejected }
+                - { Name: service, Value: s3 }
+            Period: 300
+            Stat: Sum
+
+  AwsServicesFailingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-push-or-kyc-failing
+      AlarmDescription: Push (SNS) or identity checks (Rekognition) are unavailable or throttled. Runbook - docs/monitoring.md#push-or-kyc-failing
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 5
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+      Metrics:
+        - Id: failures
+          Label: SNS and Rekognition calls failed
+          Expression: FILL(sns, 0) + FILL(rekognition, 0)
+        - Id: sns
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: !Ref MetricsNamespace
+              MetricName: pmd.aws.calls.count
+              Dimensions:
+                - { Name: outcome, Value: failed }
+                - { Name: service, Value: sns }
+            Period: 300
+            Stat: Sum
+        - Id: rekognition
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: !Ref MetricsNamespace
+              MetricName: pmd.aws.calls.count
+              Dimensions:
+                - { Name: outcome, Value: failed }
+                - { Name: service, Value: rekognition }
+            Period: 300
+            Stat: Sum
+
+  BackendErrorLogFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref BackendLogGroup
+      FilterPattern: '"ERROR"'
+      MetricTransformations:
+        - MetricNamespace: !Ref MetricsNamespace
+          MetricName: backend.log.errors
+          MetricValue: "1"
+          DefaultValue: 0
+
+  BackendErrorLogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-backend-errors-logged
+      AlarmDescription: The backend is logging errors, including failures in background work no user sees. Runbook - docs/monitoring.md#backend-errors-logged
+      Namespace: !Ref MetricsNamespace
+      MetricName: backend.log.errors
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  # ------------------------------------------------------------------ containers and database
+
+  BackendCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-backend-cpu
+      AlarmDescription: Backend tasks are short of CPU. Runbook - docs/monitoring.md#backend-cpu-or-memory
+      Namespace: AWS/ECS
+      MetricName: CPUUtilization
+      Dimensions:
+        - { Name: ClusterName, Value: !Ref EcsClusterName }
+        - { Name: ServiceName, Value: !Ref EcsServiceName }
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  BackendMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-backend-memory
+      AlarmDescription: Backend tasks are close to their memory limit. Runbook - docs/monitoring.md#backend-cpu-or-memory
+      Namespace: AWS/ECS
+      MetricName: MemoryUtilization
+      Dimensions:
+        - { Name: ClusterName, Value: !Ref EcsClusterName }
+        - { Name: ServiceName, Value: !Ref EcsServiceName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  DbCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-db-cpu
+      AlarmDescription: The database is busy. Runbook - docs/monitoring.md#db-cpu-or-storage
+      Namespace: AWS/RDS
+      MetricName: CPUUtilization
+      Dimensions:
+        - { Name: DBInstanceIdentifier, Value: !Ref DbInstanceId }
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  DbStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pmd-${EnvironmentName}-db-storage-low
+      AlarmDescription: The database is running out of disk. Runbook - docs/monitoring.md#db-cpu-or-storage
+      Namespace: AWS/RDS
+      MetricName: FreeStorageSpace
+      Dimensions:
+        - { Name: DBInstanceIdentifier, Value: !Ref DbInstanceId }
+      Statistic: Minimum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref DbFreeStorageThresholdBytes
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  # ------------------------------------------------------------------ dashboard
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub pmd-${EnvironmentName}
+      DashboardBody: !Sub |
+          {
+            "widgets": [
+              {"type": "metric", "x": 0, "y": 0, "width": 8, "height": 6, "properties": {
+                "title": "API requests and server errors", "region": "${AWS::Region}", "stat": "Sum", "period": 60,
+                "metrics": [
+                  ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${LoadBalancerFullName}", "TargetGroup", "${TargetGroupFullName}"],
+                  [".", "HTTPCode_Target_5XX_Count", ".", ".", ".", ".", {"yAxis": "right"}],
+                  [".", "HTTPCode_Target_4XX_Count", ".", ".", ".", ".", {"yAxis": "right"}]
+                ]}},
+              {"type": "metric", "x": 8, "y": 0, "width": 8, "height": 6, "properties": {
+                "title": "API response time (s)", "region": "${AWS::Region}", "period": 60,
+                "metrics": [
+                  ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${LoadBalancerFullName}", "TargetGroup", "${TargetGroupFullName}", {"stat": "p50"}],
+                  ["...", {"stat": "p95"}],
+                  ["...", {"stat": "p99"}]
+                ]}},
+              {"type": "metric", "x": 16, "y": 0, "width": 8, "height": 6, "properties": {
+                "title": "Healthy backend tasks", "region": "${AWS::Region}", "stat": "Minimum", "period": 60,
+                "metrics": [
+                  ["AWS/ApplicationELB", "HealthyHostCount", "LoadBalancer", "${LoadBalancerFullName}", "TargetGroup", "${TargetGroupFullName}"]
+                ]}},
+              {"type": "metric", "x": 0, "y": 6, "width": 8, "height": 6, "properties": {
+                "title": "How long field work waited on phones (hours; median and p95 by kind)", "region": "${AWS::Region}", "period": 3600,
+                "metrics": [
+                  [{"expression": "SEARCH('{${MetricsNamespace},kind,phi} MetricName=\"pmd.field.sync.delay.percentile.value\"', 'Maximum', 3600) / 3600000", "id": "delay"}]
+                ]}},
+              {"type": "metric", "x": 8, "y": 6, "width": 8, "height": 6, "properties": {
+                "title": "AWS calls by service and outcome", "region": "${AWS::Region}", "stat": "Sum", "period": 300,
+                "metrics": [
+                  [{"expression": "SEARCH('{${MetricsNamespace},outcome,service} MetricName=\"pmd.aws.calls.count\"', 'Sum', 300)", "id": "calls"}]
+                ]}},
+              {"type": "metric", "x": 16, "y": 6, "width": 8, "height": 6, "properties": {
+                "title": "Stuck notifications and logged errors", "region": "${AWS::Region}", "period": 300,
+                "metrics": [
+                  ["${MetricsNamespace}", "pmd.events.stuck.value", {"stat": "Maximum"}],
+                  [".", "backend.log.errors", {"stat": "Sum", "yAxis": "right"}]
+                ]}},
+              {"type": "metric", "x": 0, "y": 12, "width": 8, "height": 6, "properties": {
+                "title": "Database connections (per task)", "region": "${AWS::Region}", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  ["${MetricsNamespace}", "hikaricp.connections.active.value", "pool", "${HikariPoolName}"],
+                  [".", "hikaricp.connections.pending.value", ".", "."],
+                  [".", "hikaricp.connections.max.value", ".", "."]
+                ]}},
+              {"type": "metric", "x": 8, "y": 12, "width": 8, "height": 6, "properties": {
+                "title": "Backend CPU and memory (%)", "region": "${AWS::Region}", "period": 300,
+                "metrics": [
+                  ["AWS/ECS", "CPUUtilization", "ClusterName", "${EcsClusterName}", "ServiceName", "${EcsServiceName}", {"stat": "Average"}],
+                  [".", "MemoryUtilization", ".", ".", ".", ".", {"stat": "Maximum"}]
+                ]}},
+              {"type": "metric", "x": 16, "y": 12, "width": 8, "height": 6, "properties": {
+                "title": "Database", "region": "${AWS::Region}", "period": 300,
+                "metrics": [
+                  ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${DbInstanceId}", {"stat": "Average"}],
+                  [".", "DatabaseConnections", ".", ".", {"stat": "Maximum", "yAxis": "right"}]
+                ]}},
+              {"type": "alarm", "x": 0, "y": 18, "width": 24, "height": 4, "properties": {
+                "title": "Alarms",
+                "alarms": [
+                  "${ApiErrorRateAlarm.Arn}", "${ApiLatencyAlarm.Arn}", "${ApiDownAlarm.Arn}",
+                  "${DbConnectionsWaitingAlarm.Arn}", "${DbConnectionTimeoutsAlarm.Arn}", "${NotificationsStuckAlarm.Arn}",
+                  "${MetricsMissingAlarm.Arn}", "${EvidenceStorageAlarm.Arn}", "${AwsServicesFailingAlarm.Arn}",
+                  "${BackendErrorLogAlarm.Arn}", "${BackendCpuAlarm.Arn}", "${BackendMemoryAlarm.Arn}",
+                  "${DbCpuAlarm.Arn}", "${DbStorageAlarm.Arn}"
+                ]}}
+            ]
+          }
+
+Outputs:
+  AlarmTopicArn:
+    Description: Add more subscribers (SMS, chat) to this topic.
+    Value: !Ref AlarmTopic
+  DashboardUrl:
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=pmd-${EnvironmentName}
