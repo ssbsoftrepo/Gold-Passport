@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** How clients should authenticate (local OTP or Amazon Cognito) */
+        /** How clients should authenticate (local PIN sign-in or Amazon Cognito) */
         get: operations["getAuthConfig"];
         put?: never;
         post?: never;
@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/otp/request": {
+    "/api/v1/auth/pin/sign-up": {
         parameters: {
             query?: never;
             header?: never;
@@ -30,15 +30,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Request a one-time login code (local auth mode only) */
-        post: operations["requestOtp"];
+        /**
+         * Create an account with a phone number and a 6-digit PIN (local auth mode only; no SMS)
+         * @description PIN rules: 6 digits, not all the same and not a run (123456, 987654). PMD staff may use a
+         *     password of 10+ characters instead. In Amazon Cognito mode the apps call Cognito SignUp.
+         */
+        post: operations["signUpWithPin"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/otp/verify": {
+    "/api/v1/auth/pin/sign-in": {
         parameters: {
             query?: never;
             header?: never;
@@ -47,8 +51,30 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Exchange a one-time code for an access token (local auth mode only) */
-        post: operations["verifyOtp"];
+        /**
+         * Exchange a phone number and PIN for an access token (local auth mode only)
+         * @description 401 INVALID_CREDENTIALS for a wrong PIN or an unknown phone (the same answer for both).
+         *     429 TOO_MANY_ATTEMPTS after repeated wrong PINs. 409 PIN_CHANGE_REQUIRED when the PIN is a
+         *     temporary one from a PMD reset: replace it with POST /api/v1/auth/pin/new.
+         */
+        post: operations["signInWithPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/pin/new": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with a temporary PIN from a PMD reset and choose a new one (local auth mode only) */
+        post: operations["replaceTemporaryPin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -81,6 +107,26 @@ export interface paths {
         get?: never;
         /** Choose the platform role (once). ADMIN cannot be self-assigned. */
         put: operations["setMyRole"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the PIN after confirming the current one (local auth mode only; Cognito apps use ChangePassword)
+         * @description PMD staff (ADMIN) need a password of 10+ characters (400 PASSWORD_TOO_SHORT).
+         */
+        put: operations["changeMyPin"];
         post?: never;
         delete?: never;
         options?: never;
@@ -245,6 +291,29 @@ export interface paths {
         get: operations["adminListUsers"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{userId}/reset-pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give someone who forgot their PIN a temporary one (no SMS)
+         * @description The temporary PIN (PMD staff: a 12-character password) is returned once, for PMD to pass on
+         *     in person or by phone. It works for 7 days and must be replaced at the next sign-in. The
+         *     account is signed out on every device. 409 CANNOT_RESET_OWN_PIN for your own account,
+         *     409 NO_ACCOUNT_YET when the person never created their account (Cognito mode).
+         */
+        post: operations["adminResetPin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1116,21 +1185,32 @@ export interface components {
             cognitoRegion?: string | null;
             cognitoClientId?: string | null;
         };
-        OtpRequest: {
+        PinSignInRequest: {
             /**
              * @description E.164, e.g. +51987654321
              * @example +51987654321
              */
             phone: string;
+            /**
+             * @description 6-digit PIN, or a password of 10+ characters for PMD staff
+             * @example 135790
+             */
+            pin: string;
         };
-        OtpChallenge: {
-            expiresInSeconds: number;
-            /** @description Only returned when pmd.auth.local.expose-code=true (local development) */
-            devCode: string | null;
-        };
-        OtpVerifyRequest: {
+        NewPinRequest: {
             phone: string;
-            code: string;
+            temporaryPin: string;
+            newPin: string;
+        };
+        ChangePinRequest: {
+            currentPin: string;
+            newPin: string;
+        };
+        TemporaryPin: {
+            /** @description Shown once; never stored or logged in clear */
+            temporaryPin: string;
+            /** Format: date-time */
+            expiresAt: string;
         };
         TokenResponse: {
             accessToken: string;
@@ -1661,7 +1741,7 @@ export interface operations {
             };
         };
     };
-    requestOtp: {
+    signUpWithPin: {
         parameters: {
             query?: never;
             header?: never;
@@ -1670,24 +1750,25 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OtpRequest"];
+                "application/json": components["schemas"]["PinSignInRequest"];
             };
         };
         responses: {
-            /** @description Code issued */
-            202: {
+            /** @description Account created and signed in */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OtpChallenge"];
+                    "application/json": components["schemas"]["TokenResponse"];
                 };
             };
             400: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
         };
     };
-    verifyOtp: {
+    signInWithPin: {
         parameters: {
             query?: never;
             header?: never;
@@ -1696,7 +1777,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OtpVerifyRequest"];
+                "application/json": components["schemas"]["PinSignInRequest"];
             };
         };
         responses: {
@@ -1711,6 +1792,38 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            429: components["responses"]["Problem"];
+        };
+    };
+    replaceTemporaryPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPinRequest"];
+            };
+        };
+        responses: {
+            /** @description New PIN set, authenticated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            429: components["responses"]["Problem"];
         };
     };
     getMe: {
@@ -1781,6 +1894,32 @@ export interface operations {
                 };
             };
             409: components["responses"]["Problem"];
+        };
+    };
+    changeMyPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePinRequest"];
+            };
+        };
+        responses: {
+            /** @description PIN changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            429: components["responses"]["Problem"];
         };
     };
     searchParticipants: {
@@ -2052,6 +2191,31 @@ export interface operations {
                     "application/json": components["schemas"]["UserProfile"][];
                 };
             };
+        };
+    };
+    adminResetPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Temporary PIN */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemporaryPin"];
+                };
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
         };
     };
     getFileMetadata: {

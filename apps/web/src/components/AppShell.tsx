@@ -84,6 +84,9 @@ export function AppShell({ role, children }: { role: "ADMIN" | "COLLECTOR"; chil
         </nav>
         <div className="sidebar-footer">
           <span>{t("common.signedInAs", { name: user.displayName ?? user.phone })}</span>
+          <Link href="/account" aria-current={pathname.startsWith("/account") ? "page" : undefined}>
+            {t(role === "ADMIN" ? "account.changePassword" : "account.changePin")}
+          </Link>
           {isEnabled("english") && (
             <button type="button" onClick={() => setLocale(locale === "es" ? "en" : "es")}>
               {t("common.language")}

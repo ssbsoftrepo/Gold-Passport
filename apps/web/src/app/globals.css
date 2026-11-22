@@ -191,7 +191,8 @@ p {
   padding: 0 8px;
 }
 
-.sidebar-footer button {
+.sidebar-footer button,
+.sidebar-footer a {
   background: none;
   border: 0;
   color: var(--slate-text);
@@ -761,4 +762,26 @@ a.stamp:hover {
   flex-wrap: wrap;
   gap: 8px 24px;
   align-items: center;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A temporary PIN after a PMD reset: large, monospaced and easy to read out over the phone. */
+.temporary-pin {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin: 0;
+  user-select: all;
 }
