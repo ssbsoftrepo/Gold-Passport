@@ -1,0 +1,78 @@
+# One-time setup: lets the GitHub "Deploy" workflow deploy to this AWS account without stored keys.
+#
+# Create it once per AWS account, in the region you deploy to (docs/deploy.md):
+#   CloudFormation console -> Create stack -> Upload a template file -> this file.
+# Then copy the DeployRoleArn output into the GitHub environments as AWS_DEPLOY_ROLE_ARN.
+#
+# The role can be assumed only by workflows of this repository that run in the GitHub
+# environments "staging" or "production", and it can only hand over to the roles that
+# `cdk bootstrap` created. It cannot change anything in the account by itself.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Gold Passport - GitHub Actions deploy role (OIDC, no stored keys)
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Default: ssbsoftrepo/Gold-Passport
+    AllowedPattern: "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
+    Description: owner/name of the GitHub repository allowed to deploy
+  CreateOidcProvider:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: >-
+      "false" if this AWS account already has an identity provider for
+      token.actions.githubusercontent.com (IAM -> Identity providers)
+  CdkQualifier:
+    Type: String
+    Default: hnb659fds
+    Description: Qualifier used by cdk bootstrap (the default unless you changed it)
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by the Gold Passport GitHub Deploy workflow
+      # First deploys take up to an hour (database, CloudFront); leave room.
+      MaxSessionDuration: 7200
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GitHubOidcProvider
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubRepository}:environment:staging
+                  - !Sub repo:${GitHubRepository}:environment:production
+      Policies:
+        - PolicyName: use-cdk-bootstrap-roles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-*
+
+Outputs:
+  DeployRoleArn:
+    Description: Put this in the GitHub environments as the variable AWS_DEPLOY_ROLE_ARN
+    Value: !GetAtt DeployRole.Arn

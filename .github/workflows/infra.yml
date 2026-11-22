@@ -1,0 +1,51 @@
+# Checks the deployment code on every pull request, so the Deploy button keeps working.
+name: Infrastructure
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cdk:
+    name: AWS CDK (synth, tests, cfn-lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: npm ci
+      - name: Typecheck
+        run: npm run build
+      - name: Tests
+        run: npm test
+      - name: Synthesize both environments
+        run: npm run synth
+      - name: cfn-lint
+        run: |
+          pip install --quiet cfn-lint==1.58.0
+          # W3005 (redundant DependsOn) comes from CDK-generated helper resources.
+          cfn-lint --regions sa-east-1 --ignore-checks W3005 -- cdk.out/GoldPassport-*.template.json setup/github-deploy-role.yml
+
+  images:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Backend image
+        run: docker build -f backend/Dockerfile -t gold-passport-backend .
+      - name: Web image (same-origin API, as deployed)
+        run: docker build --build-arg NEXT_PUBLIC_API_BASE_URL= -t gold-passport-web apps/web
