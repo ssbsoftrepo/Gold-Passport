@@ -11,6 +11,8 @@ import com.pmd.goldpassport.shared.IdDocumentType;
 import com.pmd.goldpassport.shared.InvalidStateException;
 import com.pmd.goldpassport.shared.Role;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -24,7 +26,14 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 /** One onboarding (KYC) application per user. */
+/*
+ * @DynamicUpdate: write only the columns a transaction changed. The KYC result is written directly
+ * (OnboardingApplicationRepository.updateKyc, without a version bump) by an async check; with the
+ * default full-row update, a reviewer's approval loaded before that check finished would write the
+ * old kycStatus back and silently lose the result.
+ */
 @Entity
+@DynamicUpdate
 @Table(name = "applications", schema = "onboarding")
 public class OnboardingApplication {
 
